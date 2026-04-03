@@ -1,10 +1,51 @@
 import { createClient } from "@supabase/supabase-js";
-import { FeaturedStartup, UserCompany } from "@/types/company";
+import { FeaturedStartup, UserCompany, Event, Opportunity } from "@/types/company";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_PROJECT_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_API_KEY!;
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+export async function getCompanyBySlug(slug: string): Promise<{ data: FeaturedStartup | null; error: Error | null }> {
+  const { data, error } = await supabase
+    .from("featured_startups")
+    .select("*")
+    .eq("slug", slug)
+    .single();
+
+  return { data, error };
+}
+
+export async function updateCompany(id: string, updates: Partial<FeaturedStartup>): Promise<{ data: FeaturedStartup | null; error: Error | null }> {
+  const { data, error } = await supabase
+    .from("featured_startups")
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .select()
+    .single();
+
+  return { data, error };
+}
+
+export async function getCompanyEvents(companyId: string): Promise<{ data: Event[]; error: Error | null }> {
+  const { data, error } = await supabase
+    .from("events")
+    .select("*")
+    .eq("organizer_id", companyId)
+    .order("start_date", { ascending: true });
+
+  return { data: data || [], error };
+}
+
+export async function getCompanyOpportunities(companyId: string): Promise<{ data: Opportunity[]; error: Error | null }> {
+  const { data, error } = await supabase
+    .from("opportunities")
+    .select("*")
+    .eq("company_id", companyId)
+    .order("created_at", { ascending: false });
+
+  return { data: data || [], error };
+}
 
 export async function getUserCompanies(userId: string): Promise<{ data: UserCompany[]; error: Error | null }> {
   const { data, error } = await supabase
