@@ -23,7 +23,7 @@ export interface FeaturedStartup {
 }
 
 export type UserCompanyRole = "creator" | "manager" | "employee";
-export type UserCompanyStatus = "confirmation_pending" | "active" | "rejected";
+export type UserCompanyStatus = string;
 
 export interface UserCompany {
   id: string;

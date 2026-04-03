@@ -14,8 +14,8 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { FeaturedStartup, UserCompany, AuthUser } from "@/types/company";
-import { getUserCompanies, getAllCompanies, searchCompanies, claimCompany } from "@/lib/supabase";
-import { getAuthUser, getAuthUrl } from "@/lib/auth";
+import { getUserCompanies, getAllCompanies, claimCompany } from "@/lib/supabase";
+import { checkAuthClient, getAuthRedirectUrl } from "@/lib/auth-client";
 import CreateCompanyModal from "../parts/CreateCompanyModal";
 import Navbar from "../parts/Navbar";
 
@@ -53,16 +53,22 @@ function CompanyDashboardContent() {
 
   const checkAuth = async () => {
     try {
-      const authUser = await getAuthUser();
-      if (!authUser) {
-        window.location.href = getAuthUrl();
+      const authResult = await checkAuthClient();
+      if (!authResult.authenticated || !authResult.user) {
+        window.location.href = getAuthRedirectUrl();
         return;
       }
-      setUser(authUser);
-      await fetchCompanies(authUser.id, authUser.isAdmin);
+      setUser({
+        id: authResult.user.id,
+        email: authResult.user.email,
+        name: authResult.user.name,
+        avatar: authResult.user.avatar,
+        isAdmin: authResult.isAdmin,
+      });
+      await fetchCompanies(authResult.user.id, authResult.isAdmin);
     } catch (err) {
       console.error("Auth check failed:", err);
-      window.location.href = getAuthUrl();
+      window.location.href = getAuthRedirectUrl();
     }
   };
 
@@ -306,7 +312,7 @@ function CompanyCard({
 
         {status && (
           <a
-            href={`/company/${company.id}`}
+            href={`/${company.slug || company.id}`}
             className="inline-flex items-center gap-2 text-sm font-medium text-[#3182ce] hover:text-[#2c5cb8] transition-colors"
           >
             Manage Profile

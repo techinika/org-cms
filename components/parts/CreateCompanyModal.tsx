@@ -146,16 +146,29 @@ export default function CreateCompanyModal({
     return Object.keys(newErrors).length === 0;
   };
 
+const slugify = (text: string) =>
+    text
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "");
+
+  const generateSlug = (name: string, id: string) => {
+    const timestamp = Date.now().toString(36);
+    return `${slugify(name)}-${timestamp}`;
+  };
+
   const handleCreateNewCompany = async () => {
     if (!validateForm() || !userId) return;
 
     setIsLoading(true);
     try {
+      const tempSlug = generateSlug(formData.name, Math.random().toString(36));
       const { data, error } = await supabase
         .from("featured_startups")
         .insert({
           name: formData.name,
           description: formData.description,
+          slug: tempSlug,
           logo_url:
             logoPreview ||
             "https://res.cloudinary.com/dr4j56nk5/image/upload/v1774222201/company_nzdnak.png",

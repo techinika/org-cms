@@ -1,36 +1,143 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Org CMS - Company Management System
+
+A modern company management dashboard for managing events, opportunities, and company profiles.
+
+## Features
+
+- **Company Management** - Add, claim, and manage company profiles
+- **User Authentication** - Secure login via external auth system
+- **Company Profile** - View and edit company details (name, description, logo, location, website, email, industry)
+- **Events** - Manage company events (coming soon)
+- **Opportunities** - Manage job openings, internships, and grants (coming soon)
+- **Admin Mode** - Admins can view all companies in the system
+- **Responsive Design** - Works on desktop and mobile devices
+
+## Tech Stack
+
+- **Framework**: Next.js 16 (App Router)
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS
+- **Database**: Supabase (PostgreSQL)
+- **Image Storage**: Cloudinary
+- **Icons**: Lucide React
+
+## Project Structure
+
+```
+org-cms/
+├── app/
+│   ├── [slug]/
+│   │   ├── page.tsx         # Company main page with tabs
+│   │   ├── profile/page.tsx # Company profile tab
+│   │   ├── events/page.tsx  # Company events tab
+│   │   └── opportunities/   # Company opportunities tab
+│   ├── globals.css
+│   ├── layout.tsx
+│   └── page.tsx            # Homepage (company list)
+├── components/
+│   ├── pages/
+│   │   └── Home.tsx        # Main dashboard
+│   └── parts/
+│       ├── Navbar.tsx      # Top navigation bar
+│       └── CreateCompanyModal.tsx # Add/claim company modal
+├── lib/
+│   ├── auth.ts             # Server-side auth utilities
+│   ├── auth-client.ts      # Client-side auth utilities
+│   ├── cloudinary.ts       # Image upload utilities
+│   ├── supabase.ts        # Supabase client & queries
+│   └── supabase-server.ts # Server-side Supabase client
+├── types/
+│   └── company.ts         # TypeScript types
+├── .env                   # Environment variables
+├── package.json
+├── tailwind.config.ts
+└── tsconfig.json
+```
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js 18+
+- npm or yarn
+
+### Installation
+
+```bash
+npm install
+```
+
+### Environment Variables
+
+Create a `.env.local` file with:
+
+```env
+# Supabase
+NEXT_PUBLIC_PROJECT_URL=your_supabase_project_url
+NEXT_PUBLIC_API_KEY=your_supabase_anon_key
+NEXT_PUBLIC_SERVICE_KEY=your_supabase_service_key
+
+# Cloudinary
+NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=your_cloud_name
+NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET=ml_default
+
+# Auth
+NEXT_PUBLIC_AUTH_URL=https://your-auth-app-url
+NEXT_PUBLIC_BASE_URL=http://localhost:3001
+```
+
+### Development
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3001](http://localhost:3001) in your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Database Schema
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### featured_startups
+- id (uuid, primary key)
+- name (text, required)
+- logo_url (text)
+- description (text)
+- industry (text)
+- location (text)
+- website (text)
+- email (text)
+- country (text)
+- slug (varchar)
+- claimed (boolean)
+- is_featured (boolean)
+- lang (text)
 
-## Learn More
+### user_company
+- id (uuid, primary key)
+- user_id (uuid, references auth.users & authors)
+- company_id (uuid, references featured_startups)
+- role (creator | manager | employee)
+- status (confirmation_pending | active | rejected)
+- added_by (uuid)
+- created_at (timestamp)
 
-To learn more about Next.js, take a look at the following resources:
+## Key Features
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Adding a Company
+1. Click "Add Company" button
+2. Search for existing company by name
+3. If found, click to claim (creates user_company record)
+4. If not found, create new with name, description, logo
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Claiming a Company
+- When claiming, a user_company record is created with status "confirmation_pending"
+- The featured_startups.claimed field is set to true
+- Admin approval required for full access
 
-## Deploy on Vercel
+### Navigation
+- Homepage: List of user's companies
+- Company pages: /[slug], /[slug]/profile, /[slug]/events, /[slug]/opportunities
+- Sign out: Redirects to auth app
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## License
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+MIT

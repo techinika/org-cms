@@ -13,8 +13,7 @@ export async function getUserCompanies(userId: string): Promise<{ data: UserComp
       *,
       company:featured_startups(*)
     `)
-    .eq("user_id", userId)
-    .in("status", ["active", "confirmation_pending"]);
+    .eq("user_id", userId);
 
   return { data: data || [], error };
 }
