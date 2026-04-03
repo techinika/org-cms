@@ -87,3 +87,94 @@ export async function claimCompany(userId: string, companyId: string, addedBy: s
   await supabase.from("featured_startups").update({ claimed: true }).eq("id", companyId);
   return { data, error: null };
 }
+
+export async function getCompanyUsers(companyId: string): Promise<{ data: UserCompany[]; error: Error | null }> {
+  const { data, error } = await supabase
+    .from("user_company")
+    .select("*")
+    .eq("company_id", companyId)
+    .order("created_at", { ascending: false });
+  return { data: data || [], error };
+}
+
+export async function addCompanyUser(companyId: string, userEmail: string, role: string, addedBy: string): Promise<{ data: UserCompany | null; error: Error | null }> {
+  const { data: users, error: userError } = await supabase
+    .from("authors")
+    .select("id")
+    .eq("email", userEmail)
+    .single();
+  
+  if (userError || !users) {
+    return { data: null, error: new Error("User not found with this email") };
+  }
+
+  const { data, error } = await supabase
+    .from("user_company")
+    .insert({
+      company_id: companyId,
+      user_id: users.id,
+      role: role,
+      status: "confirmation_pending",
+      added_by: addedBy,
+    })
+    .select()
+    .single();
+  
+  return { data, error };
+}
+
+export async function updateCompanyUser(userCompanyId: string, updates: { role?: string; status?: string }): Promise<{ data: UserCompany | null; error: Error | null }> {
+  const { data, error } = await supabase
+    .from("user_company")
+    .update(updates)
+    .eq("id", userCompanyId)
+    .select()
+    .single();
+  
+  return { data, error };
+}
+
+export async function deleteCompanyUser(userCompanyId: string): Promise<{ error: Error | null }> {
+  const { error } = await supabase.from("user_company").delete().eq("id", userCompanyId);
+  return { error };
+}
+
+export async function getEventSchedules(eventId: string): Promise<{ data: EventSchedule[]; error: Error | null }> {
+  const { data, error } = await supabase.from("event_schedules").select("*").eq("event_id", eventId).order("day_index", { ascending: true }).order("order_index", { ascending: true });
+  return { data: data || [], error };
+}
+
+export async function createEventSchedule(schedule: Partial<EventSchedule>): Promise<{ data: EventSchedule | null; error: Error | null }> {
+  const { data, error } = await supabase.from("event_schedules").insert(schedule).select().single();
+  return { data, error };
+}
+
+export async function updateEventSchedule(id: string, updates: Partial<EventSchedule>): Promise<{ data: EventSchedule | null; error: Error | null }> {
+  const { data, error } = await supabase.from("event_schedules").update(updates).eq("id", id).select().single();
+  return { data, error };
+}
+
+export async function deleteEventSchedule(id: string): Promise<{ error: Error | null }> {
+  const { error } = await supabase.from("event_schedules").delete().eq("id", id);
+  return { error };
+}
+
+export async function getEventTickets(eventId: string): Promise<{ data: EventTicket[]; error: Error | null }> {
+  const { data, error } = await supabase.from("event_tickets").select("*").eq("event_id", eventId).order("created_at", { ascending: true });
+  return { data: data || [], error };
+}
+
+export async function createEventTicket(ticket: Partial<EventTicket>): Promise<{ data: EventTicket | null; error: Error | null }> {
+  const { data, error } = await supabase.from("event_tickets").insert(ticket).select().single();
+  return { data, error };
+}
+
+export async function updateEventTicket(id: string, updates: Partial<EventTicket>): Promise<{ data: EventTicket | null; error: Error | null }> {
+  const { data, error } = await supabase.from("event_tickets").update(updates).eq("id", id).select().single();
+  return { data, error };
+}
+
+export async function deleteEventTicket(id: string): Promise<{ error: Error | null }> {
+  const { error } = await supabase.from("event_tickets").delete().eq("id", id);
+  return { error };
+}

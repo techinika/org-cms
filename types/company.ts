@@ -39,6 +39,12 @@ export interface UserCompany {
   status: UserCompanyStatus;
   added_by: string | null;
   company?: FeaturedStartup;
+  author?: {
+    id: string;
+    name: string;
+    email: string;
+    avatar_url?: string;
+  } | null;
 }
 
 export interface AuthUser {

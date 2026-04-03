@@ -19,14 +19,15 @@ import {
   Trash2,
   MoreVertical,
   AlertTriangle,
+  Users,
 } from "lucide-react";
-import { FeaturedStartup, Event, Opportunity, INDUSTRIES } from "@/types/company";
-import { getCompanyBySlug, updateCompany, getCompanyEvents, getCompanyOpportunities, deleteCompany, deleteEvent, deleteOpportunity } from "@/lib/supabase";
+import { FeaturedStartup, Event, Opportunity, INDUSTRIES, UserCompany } from "@/types/company";
+import { getCompanyBySlug, updateCompany, getCompanyEvents, getCompanyOpportunities, deleteCompany, deleteEvent, deleteOpportunity, getCompanyUsers, deleteCompanyUser, addCompanyUser } from "@/lib/supabase";
 import { checkAuthClient, getAuthRedirectUrl } from "@/lib/auth-client";
 import Navbar from "@/components/parts/Navbar";
 import { uploadToCloudinary } from "@/lib/cloudinary";
 
-type Tab = "profile" | "events" | "opportunities";
+type Tab = "profile" | "events" | "opportunities" | "users";
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -49,6 +50,12 @@ export default function CompanyPage({ params }: Props) {
   const [showEventMenu, setShowEventMenu] = useState<string | null>(null);
   const [showOppMenu, setShowOppMenu] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [companyUsers, setCompanyUsers] = useState<UserCompany[]>([]);
+  const [showInviteForm, setShowInviteForm] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState<string | null>(null);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState("employee");
+  const [isInviting, setIsInviting] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -101,12 +108,14 @@ export default function CompanyPage({ params }: Props) {
     });
     setLogoPreview(data.logo_url);
 
-    const [eventsData, oppData] = await Promise.all([
+    const [eventsData, oppData, usersData] = await Promise.all([
       getCompanyEvents(data.id),
       getCompanyOpportunities(data.id),
+      getCompanyUsers(data.id),
     ]);
     setEvents(eventsData.data || []);
     setOpportunities(oppData.data || []);
+    setCompanyUsers(usersData.data || []);
     setIsLoading(false);
   };
 
@@ -177,6 +186,29 @@ export default function CompanyPage({ params }: Props) {
     }
     setDeletingId(null);
     setShowOppMenu(null);
+  };
+
+  const handleInviteUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inviteEmail.trim() || !company) return;
+    setIsInviting(true);
+    const { data: newUser, error } = await addCompanyUser(company.id, inviteEmail, inviteRole, user?.email || "");
+    if (!error && newUser) {
+      setCompanyUsers([...companyUsers, newUser]);
+    }
+    setInviteEmail("");
+    setShowInviteForm(false);
+    setIsInviting(false);
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    setDeletingId(userId);
+    const { error } = await deleteCompanyUser(userId);
+    if (!error) {
+      setCompanyUsers(companyUsers.filter(u => u.id !== userId));
+    }
+    setDeletingId(null);
+    setShowUserMenu(null);
   };
 
   if (isLoading) {
@@ -261,7 +293,7 @@ export default function CompanyPage({ params }: Props) {
             </div>
 
             <nav className="flex gap-1 border-b border-gray-200 -mx-4 sm:-mx-6 px-4 sm:px-6 overflow-x-auto">
-              {(["profile", "events", "opportunities"] as Tab[]).map((tab) => (
+              {(["profile", "events", "opportunities", "users"] as Tab[]).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
@@ -305,6 +337,24 @@ export default function CompanyPage({ params }: Props) {
               deletingId={deletingId}
               showMenu={showOppMenu}
               setShowMenu={setShowOppMenu}
+            />
+          )}
+          {activeTab === "users" && (
+            <UsersTab
+              users={companyUsers}
+              onInvite={() => setShowInviteForm(true)}
+              showInviteForm={showInviteForm}
+              inviteEmail={inviteEmail}
+              setInviteEmail={setInviteEmail}
+              inviteRole={inviteRole}
+              setInviteRole={setInviteRole}
+              onInviteSubmit={handleInviteUser}
+              isInviting={isInviting}
+              onCancelInvite={() => { setShowInviteForm(false); setInviteEmail(""); }}
+              onDelete={handleDeleteUser}
+              deletingId={deletingId}
+              showMenu={showUserMenu}
+              setShowMenu={setShowUserMenu}
             />
           )}
         </div>
@@ -714,6 +764,162 @@ function OpportunitiesTab({
                   </div>
                 )}
               </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function UsersTab({
+  users,
+  onInvite,
+  showInviteForm,
+  inviteEmail,
+  setInviteEmail,
+  inviteRole,
+  setInviteRole,
+  onInviteSubmit,
+  isInviting,
+  onCancelInvite,
+  onDelete,
+  deletingId,
+  showMenu,
+  setShowMenu,
+}: {
+  users: UserCompany[];
+  onInvite: () => void;
+  showInviteForm: boolean;
+  inviteEmail: string;
+  setInviteEmail: (v: string) => void;
+  inviteRole: string;
+  setInviteRole: (v: string) => void;
+  onInviteSubmit: (e: React.FormEvent) => void;
+  isInviting: boolean;
+  onCancelInvite: () => void;
+  onDelete: (id: string) => void;
+  deletingId: string | null;
+  showMenu: string | null;
+  setShowMenu: (id: string | null) => void;
+}) {
+  return (
+    <div className="bg-white rounded-2xl border border-gray-200 p-6">
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-lg font-semibold text-gray-900">Team Members</h2>
+        <button
+          onClick={onInvite}
+          className="inline-flex items-center gap-2 px-4 py-2 bg-[#3182ce] text-white rounded-xl font-medium text-sm hover:bg-[#2c5cb8] transition-colors"
+        >
+          <Users className="w-4 h-4" />
+          Invite User
+        </button>
+      </div>
+
+      {showInviteForm && (
+        <form onSubmit={onInviteSubmit} className="mb-6 p-4 bg-gray-50 rounded-xl border border-gray-200">
+          <div className="grid sm:grid-cols-3 gap-4">
+            <div className="sm:col-span-2">
+              <input
+                type="email"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                placeholder="Enter email address"
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none transition-all"
+                required
+              />
+            </div>
+            <div className="flex gap-2">
+              <select
+                value={inviteRole}
+                onChange={(e) => setInviteRole(e.target.value)}
+                className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none transition-all bg-white"
+              >
+                <option value="manager">Manager</option>
+                <option value="employee">Employee</option>
+              </select>
+              <button
+                type="submit"
+                disabled={isInviting}
+                className="px-4 py-2 bg-[#3182ce] text-white rounded-xl font-medium text-sm hover:bg-[#2c5cb8] transition-colors disabled:opacity-50"
+              >
+                {isInviting ? <Loader2 className="w-4 h-4 animate-spin" /> : "Invite"}
+              </button>
+              <button
+                type="button"
+                onClick={onCancelInvite}
+                className="px-4 py-2 text-gray-500 hover:bg-gray-100 rounded-xl transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </form>
+      )}
+
+      {users.length === 0 ? (
+        <div className="text-center py-12">
+          <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <Users className="w-8 h-8 text-gray-400" />
+          </div>
+          <p className="text-gray-500">No team members yet</p>
+          <p className="text-sm text-gray-400 mt-1">Invite team members to help manage this company</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {users.map((user) => (
+            <div key={user.id} className="flex items-center gap-4 p-4 border border-gray-200 rounded-xl hover:border-[#3182ce]/30 transition-colors">
+              <div className="w-12 h-12 bg-[#3182ce]/10 rounded-full flex items-center justify-center flex-shrink-0">
+                {user.author?.name ? (
+                  <span className="text-[#3182ce] font-medium">{user.author.name.charAt(0).toUpperCase()}</span>
+                ) : (
+                  <Users className="w-6 h-6 text-[#3182ce]" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-gray-900 truncate">
+                  {user.author?.name || user.author?.email || "Unknown User"}
+                </p>
+                <p className="text-sm text-gray-500 truncate">{user.author?.email}</p>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <span className={`text-xs px-2 py-1 rounded-full ${
+                  user.role === "creator" ? "bg-purple-100 text-purple-700" :
+                  user.role === "manager" ? "bg-blue-100 text-blue-700" :
+                  "bg-gray-100 text-gray-600"
+                }`}>
+                  {user.role}
+                </span>
+                <span className={`text-xs px-2 py-1 rounded-full ${
+                  user.status === "active" ? "bg-green-100 text-green-700" :
+                  user.status === "confirmation_pending" ? "bg-yellow-100 text-yellow-700" :
+                  "bg-red-100 text-red-700"
+                }`}>
+                  {user.status?.replace("_", " ")}
+                </span>
+              </div>
+              {user.role !== "creator" && (
+                <div className="relative">
+                  <button
+                    onClick={() => setShowMenu(showMenu === user.id ? null : user.id)}
+                    className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
+                  >
+                    <MoreVertical className="w-5 h-5 text-gray-400" />
+                  </button>
+                  {showMenu === user.id && (
+                    <div className="absolute right-0 top-full mt-1 w-40 bg-white rounded-xl shadow-lg border border-gray-200 py-1 z-10">
+                      <button
+                        onClick={() => onDelete(user.id)}
+                        disabled={deletingId === user.id}
+                        className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                      >
+                        {deletingId === user.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                        Remove
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </div>
