@@ -16,9 +16,12 @@ import {
   Tags,
   FileText,
   Save,
+  Trash2,
+  MoreVertical,
+  AlertTriangle,
 } from "lucide-react";
 import { FeaturedStartup, Event, Opportunity, INDUSTRIES } from "@/types/company";
-import { getCompanyBySlug, updateCompany, getCompanyEvents, getCompanyOpportunities } from "@/lib/supabase";
+import { getCompanyBySlug, updateCompany, getCompanyEvents, getCompanyOpportunities, deleteCompany, deleteEvent, deleteOpportunity } from "@/lib/supabase";
 import { checkAuthClient, getAuthRedirectUrl } from "@/lib/auth-client";
 import Navbar from "@/components/parts/Navbar";
 import { uploadToCloudinary } from "@/lib/cloudinary";
@@ -41,6 +44,11 @@ export default function CompanyPage({ params }: Props) {
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<{ name: string; email: string; avatar?: string } | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showUnpublishModal, setShowUnpublishModal] = useState(false);
+  const [showEventMenu, setShowEventMenu] = useState<string | null>(null);
+  const [showOppMenu, setShowOppMenu] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -105,10 +113,8 @@ export default function CompanyPage({ params }: Props) {
   const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !company) return;
-
     const previewUrl = URL.createObjectURL(file);
     setLogoPreview(previewUrl);
-
     setIsUploading(true);
     try {
       const url = await uploadToCloudinary(file, "companies");
@@ -135,8 +141,42 @@ export default function CompanyPage({ params }: Props) {
 
   const handleSave = () => saveCompany({});
 
-  const togglePublish = () => {
-    saveCompany({ is_published: !formData.is_published });
+  const handleUnpublish = () => {
+    saveCompany({ is_published: false });
+    setShowUnpublishModal(false);
+  };
+
+  const handleDeleteCompany = async () => {
+    if (!company) return;
+    setDeletingId(company.id);
+    const { error } = await deleteCompany(company.id);
+    if (!error) {
+      window.location.href = "/";
+    } else {
+      setError("Failed to delete company");
+    }
+    setDeletingId(null);
+    setShowDeleteModal(false);
+  };
+
+  const handleDeleteEvent = async (eventId: string) => {
+    setDeletingId(eventId);
+    const { error } = await deleteEvent(eventId);
+    if (!error) {
+      setEvents(events.filter(e => e.id !== eventId));
+    }
+    setDeletingId(null);
+    setShowEventMenu(null);
+  };
+
+  const handleDeleteOpportunity = async (oppId: string) => {
+    setDeletingId(oppId);
+    const { error } = await deleteOpportunity(oppId);
+    if (!error) {
+      setOpportunities(opportunities.filter(o => o.id !== oppId));
+    }
+    setDeletingId(null);
+    setShowOppMenu(null);
   };
 
   if (isLoading) {
@@ -169,16 +209,16 @@ export default function CompanyPage({ params }: Props) {
         </div>
 
         <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-          <div className="h-24 bg-gradient-to-r from-[#3182ce] to-[#63b3ed]"></div>
+          <div className="h-16 md:h-20 bg-gradient-to-r from-[#3182ce] to-[#63b3ed]"></div>
           
-          <div className="px-6 pb-6">
-            <div className="flex flex-col sm:flex-row sm:items-end gap-4 -mt-10 mb-4">
+          <div className="px-4 sm:px-6 pb-6">
+            <div className="flex flex-col sm:flex-row sm:items-end gap-4 -mt-8 sm:-mt-10 mb-4">
               <div className="relative group">
-                <div className="w-20 h-20 rounded-2xl bg-white border-4 border-white shadow-lg flex items-center justify-center overflow-hidden">
+                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-white border-4 border-white shadow-lg flex items-center justify-center overflow-hidden">
                   {logoPreview ? (
                     <img src={logoPreview} alt={company.name} className="w-full h-full object-cover" />
                   ) : (
-                    <Building2 className="w-8 h-8 text-gray-300" />
+                    <Building2 className="w-6 h-6 sm:w-8 sm:h-8 text-gray-300" />
                   )}
                 </div>
                 <label className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-2xl opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity">
@@ -188,36 +228,44 @@ export default function CompanyPage({ params }: Props) {
               </div>
               
               <div className="flex-1 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div>
-                  <h1 className="text-2xl font-bold text-gray-900">{company.name}</h1>
+                <div className="pt-2 sm:pt-0">
+                  <h1 className="text-xl sm:text-2xl font-bold text-gray-900">{company.name}</h1>
                   <p className="text-sm text-gray-500 line-clamp-1">{company.description}</p>
                 </div>
-                <button
-                  onClick={togglePublish}
-                  disabled={isSaving}
-                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl font-medium text-sm transition-colors ${
-                    formData.is_published
-                      ? "bg-green-100 text-green-700 hover:bg-green-200"
-                      : "bg-yellow-100 text-yellow-700 hover:bg-yellow-200"
-                  }`}
-                >
-                  {formData.is_published ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                  {formData.is_published ? "Published" : "Draft"}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => formData.is_published ? setShowUnpublishModal(true) : saveCompany({ is_published: true })}
+                    disabled={isSaving}
+                    className={`inline-flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl font-medium text-sm transition-colors ${
+                      formData.is_published
+                        ? "bg-green-100 text-green-700 hover:bg-green-200"
+                        : "bg-yellow-100 text-yellow-700 hover:bg-yellow-200"
+                    }`}
+                  >
+                    {formData.is_published ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                    <span className="hidden sm:inline">{formData.is_published ? "Published" : "Draft"}</span>
+                  </button>
+                  <button
+                    onClick={() => setShowDeleteModal(true)}
+                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-4 text-xs text-gray-500 mb-6">
+            <div className="flex flex-wrap items-center gap-3 text-xs sm:text-sm text-gray-500 mb-4">
               <span>Created: {new Date(company.created_at).toLocaleDateString()}</span>
               {company.updated_at && <span>Updated: {new Date(company.updated_at).toLocaleDateString()}</span>}
             </div>
 
-            <nav className="flex gap-2 border-b border-gray-200 -mx-6 px-6">
+            <nav className="flex gap-1 border-b border-gray-200 -mx-4 sm:-mx-6 px-4 sm:px-6 overflow-x-auto">
               {(["profile", "events", "opportunities"] as Tab[]).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
-                  className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors -mb-px ${
+                  className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors -mb-px whitespace-nowrap ${
                     activeTab === tab
                       ? "border-[#3182ce] text-[#3182ce]"
                       : "border-transparent text-gray-500 hover:text-gray-700"
@@ -239,10 +287,95 @@ export default function CompanyPage({ params }: Props) {
               isSaving={isSaving}
             />
           )}
-          {activeTab === "events" && <EventsTab events={events} companyId={company.id} />}
-          {activeTab === "opportunities" && <OpportunitiesTab opportunities={opportunities} companyId={company.id} />}
+          {activeTab === "events" && (
+            <EventsTab
+              events={events}
+              companySlug={slug}
+              onDelete={handleDeleteEvent}
+              deletingId={deletingId}
+              showMenu={showEventMenu}
+              setShowMenu={setShowEventMenu}
+            />
+          )}
+          {activeTab === "opportunities" && (
+            <OpportunitiesTab
+              opportunities={opportunities}
+              companySlug={slug}
+              onDelete={handleDeleteOpportunity}
+              deletingId={deletingId}
+              showMenu={showOppMenu}
+              setShowMenu={setShowOppMenu}
+            />
+          )}
         </div>
       </div>
+
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                <AlertTriangle className="w-6 h-6 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Delete Company</h3>
+                <p className="text-sm text-gray-500">This action cannot be undone</p>
+              </div>
+            </div>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to delete <strong>{company.name}</strong>? This will also delete all associated events and opportunities.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-xl transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteCompany}
+                disabled={deletingId === company.id}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-xl transition-colors disabled:opacity-50"
+              >
+                {deletingId === company.id ? <Loader2 className="w-4 h-4 animate-spin" /> : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showUnpublishModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
+                <EyeOff className="w-6 h-6 text-yellow-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Unpublish Company</h3>
+                <p className="text-sm text-gray-500">This will hide your company from the public</p>
+              </div>
+            </div>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to unpublish <strong>{company.name}</strong>? Users will no longer be able to see it until you publish it again.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowUnpublishModal(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-xl transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUnpublish}
+                className="px-4 py-2 text-sm font-medium text-white bg-yellow-600 hover:bg-yellow-700 rounded-xl transition-colors"
+              >
+                Unpublish
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -425,15 +558,29 @@ function ProfileTab({
   );
 }
 
-function EventsTab({ events, companyId }: { events: Event[]; companyId: string }) {
+function EventsTab({
+  events,
+  companySlug,
+  onDelete,
+  deletingId,
+  showMenu,
+  setShowMenu,
+}: {
+  events: Event[];
+  companySlug: string;
+  onDelete: (id: string) => void;
+  deletingId: string | null;
+  showMenu: string | null;
+  setShowMenu: (id: string | null) => void;
+}) {
   return (
     <div className="bg-white rounded-2xl border border-gray-200 p-6">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-lg font-semibold text-gray-900">Events</h2>
-        <button className="inline-flex items-center gap-2 px-4 py-2 bg-[#3182ce] text-white rounded-xl font-medium text-sm hover:bg-[#2c5cb8] transition-colors">
+        <Link href={`/${companySlug}/events/new`} className="inline-flex items-center gap-2 px-4 py-2 bg-[#3182ce] text-white rounded-xl font-medium text-sm hover:bg-[#2c5cb8] transition-colors">
           <Calendar className="w-4 h-4" />
           Create Event
-        </button>
+        </Link>
       </div>
 
       {events.length === 0 ? (
@@ -448,20 +595,42 @@ function EventsTab({ events, companyId }: { events: Event[]; companyId: string }
         <div className="space-y-4">
           {events.map((event) => (
             <div key={event.id} className="flex items-center gap-4 p-4 border border-gray-200 rounded-xl hover:border-[#3182ce]/30 transition-colors">
-              <div className="w-14 h-14 bg-[#3182ce]/10 rounded-xl flex items-center justify-center">
+              <Link href={`/${companySlug}/events/${event.id}`} className="w-14 h-14 bg-[#3182ce]/10 rounded-xl flex items-center justify-center flex-shrink-0">
                 <Calendar className="w-7 h-7 text-[#3182ce]" />
-              </div>
-              <div className="flex-1">
-                <h3 className="font-medium text-gray-900">{event.title}</h3>
+              </Link>
+              <div className="flex-1 min-w-0">
+                <Link href={`/${companySlug}/events/${event.id}`} className="font-medium text-gray-900 hover:text-[#3182ce] transition-colors block truncate">
+                  {event.title}
+                </Link>
                 <p className="text-sm text-gray-500">{event.location || "No location"}</p>
               </div>
-              <div className="text-right">
+              <div className="text-right flex-shrink-0">
                 <p className="text-sm text-gray-500">
                   {event.start_date ? new Date(event.start_date).toLocaleDateString() : "TBA"}
                 </p>
-                <span className={`text-xs px-2 py-0.5 rounded-full ${event.status === 'published' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                <span className={`text-xs px-2 py-0.5 rounded-full ${event.status === 'Upcoming' || event.status === 'Ongoing' || event.publish_status === 'published' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
                   {event.status || "draft"}
                 </span>
+              </div>
+              <div className="relative">
+                <button
+                  onClick={() => setShowMenu(showMenu === event.id ? null : event.id)}
+                  className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
+                >
+                  <MoreVertical className="w-5 h-5 text-gray-400" />
+                </button>
+                {showMenu === event.id && (
+                  <div className="absolute right-0 top-full mt-1 w-40 bg-white rounded-xl shadow-lg border border-gray-200 py-1 z-10">
+                    <button
+                      onClick={() => onDelete(event.id)}
+                      disabled={deletingId === event.id}
+                      className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                    >
+                      {deletingId === event.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                      Delete
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           ))}
@@ -471,15 +640,29 @@ function EventsTab({ events, companyId }: { events: Event[]; companyId: string }
   );
 }
 
-function OpportunitiesTab({ opportunities, companyId }: { opportunities: Opportunity[]; companyId: string }) {
+function OpportunitiesTab({
+  opportunities,
+  companySlug,
+  onDelete,
+  deletingId,
+  showMenu,
+  setShowMenu,
+}: {
+  opportunities: Opportunity[];
+  companySlug: string;
+  onDelete: (id: string) => void;
+  deletingId: string | null;
+  showMenu: string | null;
+  setShowMenu: (id: string | null) => void;
+}) {
   return (
     <div className="bg-white rounded-2xl border border-gray-200 p-6">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-lg font-semibold text-gray-900">Opportunities</h2>
-        <button className="inline-flex items-center gap-2 px-4 py-2 bg-[#3182ce] text-white rounded-xl font-medium text-sm hover:bg-[#2c5cb8] transition-colors">
+        <Link href={`/${companySlug}/opportunities/new`} className="inline-flex items-center gap-2 px-4 py-2 bg-[#3182ce] text-white rounded-xl font-medium text-sm hover:bg-[#2c5cb8] transition-colors">
           <Briefcase className="w-4 h-4" />
           Create Opportunity
-        </button>
+        </Link>
       </div>
 
       {opportunities.length === 0 ? (
@@ -494,20 +677,42 @@ function OpportunitiesTab({ opportunities, companyId }: { opportunities: Opportu
         <div className="space-y-4">
           {opportunities.map((opp) => (
             <div key={opp.id} className="flex items-center gap-4 p-4 border border-gray-200 rounded-xl hover:border-[#3182ce]/30 transition-colors">
-              <div className="w-14 h-14 bg-purple-100 rounded-xl flex items-center justify-center">
+              <Link href={`/${companySlug}/opportunities/${opp.id}`} className="w-14 h-14 bg-purple-100 rounded-xl flex items-center justify-center flex-shrink-0">
                 <Briefcase className="w-7 h-7 text-purple-600" />
-              </div>
-              <div className="flex-1">
-                <h3 className="font-medium text-gray-900">{opp.title}</h3>
+              </Link>
+              <div className="flex-1 min-w-0">
+                <Link href={`/${companySlug}/opportunities/${opp.id}`} className="font-medium text-gray-900 hover:text-[#3182ce] transition-colors block truncate">
+                  {opp.title}
+                </Link>
                 <p className="text-sm text-gray-500">{opp.type} {opp.location && `• ${opp.location}`}</p>
               </div>
-              <div className="text-right">
-                {opp.deadline && (
-                  <p className="text-sm text-gray-500">Due: {new Date(opp.deadline).toLocaleDateString()}</p>
+              <div className="text-right flex-shrink-0">
+                {opp.expires_at && (
+                  <p className="text-sm text-gray-500">Due: {new Date(opp.expires_at).toLocaleDateString()}</p>
                 )}
-                <span className={`text-xs px-2 py-0.5 rounded-full ${opp.status === 'published' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                <span className={`text-xs px-2 py-0.5 rounded-full ${opp.status === 'Open' || opp.status === 'Closed' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
                   {opp.status || "draft"}
                 </span>
+              </div>
+              <div className="relative">
+                <button
+                  onClick={() => setShowMenu(showMenu === opp.id ? null : opp.id)}
+                  className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
+                >
+                  <MoreVertical className="w-5 h-5 text-gray-400" />
+                </button>
+                {showMenu === opp.id && (
+                  <div className="absolute right-0 top-full mt-1 w-40 bg-white rounded-xl shadow-lg border border-gray-200 py-1 z-10">
+                    <button
+                      onClick={() => onDelete(opp.id)}
+                      disabled={deletingId === opp.id}
+                      className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                    >
+                      {deletingId === opp.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                      Delete
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           ))}

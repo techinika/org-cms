@@ -4,11 +4,13 @@ A modern company management dashboard for managing events, opportunities, and co
 
 ## Features
 
-- **Company Management** - Add, claim, and manage company profiles
+- **Company Management** - Add, claim, edit, and delete company profiles
 - **User Authentication** - Secure login via external auth system
-- **Company Profile** - View and edit company details (name, description, logo, location, website, email, industry)
-- **Events** - Manage company events (coming soon)
-- **Opportunities** - Manage job openings, internships, and grants (coming soon)
+- **Company Profile** - Full editable profile (name, description, logo, location, website, email, industry, country, tags, SEO settings)
+- **Publish/Unpublish** - Control company visibility (draft/published)
+- **Events Management** - Create, edit, delete events with full details
+- **Opportunities Management** - Create, edit, delete jobs, internships, grants, tenders
+- **Applications** - View and filter applications for opportunities
 - **Admin Mode** - Admins can view all companies in the system
 - **Responsive Design** - Works on desktop and mobile devices
 
@@ -27,30 +29,32 @@ A modern company management dashboard for managing events, opportunities, and co
 org-cms/
 ├── app/
 │   ├── [slug]/
-│   │   ├── page.tsx         # Company main page with tabs
-│   │   ├── profile/page.tsx # Company profile tab
-│   │   ├── events/page.tsx  # Company events tab
-│   │   └── opportunities/   # Company opportunities tab
+│   │   ├── page.tsx                     # Company main page with tabs
+│   │   ├── events/
+│   │   │   ├── new/page.tsx             # Create new event
+│   │   │   └── [event-id]/page.tsx      # Event detail & edit
+│   │   └── opportunities/
+│   │       ├── new/page.tsx             # Create new opportunity
+│   │       └── [opp-id]/page.tsx        # Opportunity detail with applications
 │   ├── globals.css
 │   ├── layout.tsx
-│   └── page.tsx            # Homepage (company list)
+│   └── page.tsx                         # Homepage (company list)
 ├── components/
 │   ├── pages/
-│   │   └── Home.tsx        # Main dashboard
+│   │   └── Home.tsx                     # Main dashboard
 │   └── parts/
-│       ├── Navbar.tsx      # Top navigation bar
-│       └── CreateCompanyModal.tsx # Add/claim company modal
+│       ├── Navbar.tsx                   # Top navigation bar
+│       └── CreateCompanyModal.tsx       # Add/claim company modal
 ├── lib/
-│   ├── auth.ts             # Server-side auth utilities
-│   ├── auth-client.ts      # Client-side auth utilities
-│   ├── cloudinary.ts       # Image upload utilities
-│   ├── supabase.ts        # Supabase client & queries
-│   └── supabase-server.ts # Server-side Supabase client
+│   ├── auth.ts                         # Server-side auth utilities
+│   ├── auth-client.ts                  # Client-side auth utilities
+│   ├── cloudinary.ts                   # Image upload utilities
+│   ├── supabase.ts                     # Supabase client & queries
+│   └── supabase-server.ts              # Server-side Supabase client
 ├── types/
-│   └── company.ts         # TypeScript types
-├── .env                   # Environment variables
+│   └── company.ts                      # TypeScript types
+├── .env                                 # Environment variables
 ├── package.json
-├── tailwind.config.ts
 └── tsconfig.json
 ```
 
@@ -109,7 +113,12 @@ Open [http://localhost:3001](http://localhost:3001) in your browser.
 - slug (varchar)
 - claimed (boolean)
 - is_featured (boolean)
+- is_published (boolean)
+- seo_title (text)
+- seo_description (text)
+- tags (text)
 - lang (text)
+- created_at, updated_at (timestamps)
 
 ### user_company
 - id (uuid, primary key)
@@ -118,6 +127,43 @@ Open [http://localhost:3001](http://localhost:3001) in your browser.
 - role (creator | manager | employee)
 - status (confirmation_pending | active | rejected)
 - added_by (uuid)
+- created_at (timestamp)
+
+### events
+- id (uuid, primary key)
+- title (text)
+- slug (text, unique)
+- location (text)
+- format (Online | In-Person | Hybrid)
+- status (Upcoming | Ongoing | Completed | Cancelled)
+- publish_status (draft | published)
+- start_date, end_date (timestamps)
+- organizer_id (uuid, references featured_startups)
+- seo_description, full_description (text)
+- tags, external_link (text)
+- views, is_featured (numeric/boolean)
+- lang (text)
+
+### opportunities
+- id (uuid, primary key)
+- title (text)
+- slug (text, unique)
+- type (Job | Tender | Grant | Internship | Other)
+- location (text)
+- salary, application_link, contact_email (text)
+- work_mode (Remote | On-Site | Hybrid)
+- employment_type (Full-Time | Part-Time | Contract | Internship)
+- status (Open | Closed | Draft)
+- company_id (uuid, references featured_startups)
+- expires_at (timestamp)
+- views, featured (numeric/boolean)
+
+### applications
+- id (uuid, primary key)
+- opportunity_id (uuid, references opportunities)
+- name, email, phone, location (text)
+- resume_url, cover_letter (text)
+- supporting_docs, portfolio_links (text[])
 - created_at (timestamp)
 
 ## Key Features
@@ -133,9 +179,32 @@ Open [http://localhost:3001](http://localhost:3001) in your browser.
 - The featured_startups.claimed field is set to true
 - Admin approval required for full access
 
-### Navigation
-- Homepage: List of user's companies
-- Company pages: /[slug], /[slug]/profile, /[slug]/events, /[slug]/opportunities
+### Company Management
+- Edit company profile (name, description, logo, location, website, email, industry, country, tags)
+- SEO settings (title, description)
+- Publish/Unpublish toggle with confirmation modal
+- Delete company with confirmation modal
+
+### Events
+- List events with status badges
+- Create new event at `/[slug]/events/new`
+- Edit event at `/[slug]/events/[event-id]`
+- Delete event from menu
+
+### Opportunities
+- List opportunities with type badges
+- Create new opportunity at `/[slug]/opportunities/new`
+- Edit opportunity at `/[slug]/opportunities/[opp-id]`
+- View applications with filters (All/Pending/Accepted/Rejected)
+- Delete opportunity from menu
+
+### Navigation Routes
+- Homepage: `/` - List of user's companies
+- Company page: `/[slug]` - Company with tabs (Profile, Events, Opportunities)
+- Event detail: `/[slug]/events/[event-id]`
+- Opportunity detail: `/[slug]/opportunities/[opp-id]`
+- Create event: `/[slug]/events/new`
+- Create opportunity: `/[slug]/opportunities/new`
 - Sign out: Redirects to auth app
 
 ## License

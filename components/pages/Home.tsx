@@ -12,9 +12,10 @@ import {
   Loader2,
   AlertCircle,
   CheckCircle,
+  Trash2,
 } from "lucide-react";
 import { FeaturedStartup, UserCompany, AuthUser } from "@/types/company";
-import { getUserCompanies, getAllCompanies, claimCompany } from "@/lib/supabase";
+import { getUserCompanies, getAllCompanies, claimCompany, deleteCompany } from "@/lib/supabase";
 import { checkAuthClient, getAuthRedirectUrl } from "@/lib/auth-client";
 import CreateCompanyModal from "../parts/CreateCompanyModal";
 import Navbar from "../parts/Navbar";
@@ -46,6 +47,7 @@ function CompanyDashboardContent() {
   const [showAllCompanies, setShowAllCompanies] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [claimingCompanyId, setClaimingCompanyId] = useState<string | null>(null);
+  const [deletingCompanyId, setDeletingCompanyId] = useState<string | null>(null);
 
   useEffect(() => {
     checkAuth();
@@ -110,6 +112,17 @@ function CompanyDashboardContent() {
 
   const handleCompanyCreated = async (newCompany: FeaturedStartup) => {
     await checkAuth();
+  };
+
+  const handleDeleteCompany = async (companyId: string) => {
+    setDeletingCompanyId(companyId);
+    const { error } = await deleteCompany(companyId);
+    if (!error) {
+      await checkAuth();
+    } else {
+      setError("Failed to delete company");
+    }
+    setDeletingCompanyId(null);
   };
 
   const displayCompanies = user?.isAdmin && showAllCompanies ? allCompanies : userCompanies.map(uc => uc.company).filter(Boolean) as FeaturedStartup[];
@@ -226,6 +239,8 @@ function CompanyDashboardContent() {
                   isAdmin={isAdmin}
                   onClaim={() => handleClaimCompany(company.id)}
                   claiming={claimingCompanyId === company.id}
+                  onDelete={handleDeleteCompany}
+                  deletingId={deletingCompanyId}
                 />
               );
             })}
@@ -249,13 +264,19 @@ function CompanyCard({
   isAdmin,
   onClaim,
   claiming,
+  onDelete,
+  deletingId,
 }: {
   company: FeaturedStartup;
   status?: string;
   isAdmin?: boolean;
   onClaim: () => void;
   claiming: boolean;
+  onDelete?: (id: string) => void;
+  deletingId?: string | null;
 }) {
+  const [showMenu, setShowMenu] = useState(false);
+
   return (
     <div className="group bg-white rounded-2xl border border-gray-200 hover:border-[#3182ce]/30 hover:shadow-lg transition-all overflow-hidden">
       <div className="p-6">
@@ -273,9 +294,29 @@ function CompanyCard({
           </div>
           <div className="flex items-center gap-2">
             {status && <UserBadge status={status} />}
-            <button className="p-2 hover:bg-gray-100 rounded-xl transition-colors">
-              <MoreVertical className="w-5 h-5 text-gray-400" />
-            </button>
+            <div className="relative">
+              <button 
+                onClick={() => setShowMenu(!showMenu)}
+                className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
+              >
+                <MoreVertical className="w-5 h-5 text-gray-400" />
+              </button>
+              {showMenu && onDelete && (
+                <div className="absolute right-0 top-full mt-1 w-40 bg-white rounded-xl shadow-lg border border-gray-200 py-1 z-10">
+                  <button
+                    onClick={() => {
+                      onDelete(company.id);
+                      setShowMenu(false);
+                    }}
+                    disabled={deletingId === company.id}
+                    className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                  >
+                    {deletingId === company.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                    Delete
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
