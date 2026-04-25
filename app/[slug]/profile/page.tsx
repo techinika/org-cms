@@ -1,66 +1,193 @@
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
-import { Building2, Globe, MapPin, Mail, Briefcase, ExternalLink, Loader2 } from "lucide-react";
+"use client";
 
-export const dynamic = "force-dynamic";
+import { useState, useEffect } from "react";
+import { use } from "react";
+import Link from "next/link";
+import {
+  Building2,
+  Globe,
+  MapPin,
+  Mail,
+  Briefcase,
+  ExternalLink,
+  Loader2,
+  ArrowLeft,
+  Save,
+  Trash2,
+  AlertTriangle,
+  Eye,
+  EyeOff,
+  Tags,
+  FileText,
+} from "lucide-react";
+import { FeaturedStartup, INDUSTRIES } from "@/types/company";
+import { getCompanyBySlug, updateCompany, deleteCompany } from "@/lib/supabase";
+import { checkAuthClient, getAuthRedirectUrl } from "@/lib/auth-client";
+import Navbar from "@/components/parts/Navbar";
+import { uploadToCloudinary } from "@/lib/cloudinary";
 
-interface Props {
-  params: Promise<{ slug: string }>;
-}
+export default function CompanyProfilePage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = use(params);
+  const [company, setCompany] = useState<FeaturedStartup | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [user, setUser] = useState<{ name: string; email: string; avatar?: string } | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showUnpublishModal, setShowUnpublishModal] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [formData, setFormData] = useState({
+    name: "",
+    description: "",
+    website: "",
+    email: "",
+    country: "",
+    location: "",
+    industry: "",
+    tags: "",
+    seo_title: "",
+    seo_description: "",
+    is_published: false,
+  });
 
-async function getCompany(slug: string) {
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_PROJECT_URL!,
-    process.env.NEXT_PUBLIC_API_KEY!,
-    {
-      cookies: {
-        getAll: () => cookieStore.getAll().map((c) => ({ name: c.name, value: c.value })),
-        setAll: () => {},
-      },
+  useEffect(() => {
+    checkAuth();
+  }, [slug]);
+
+  const checkAuth = async () => {
+    const authResult = await checkAuthClient();
+    if (!authResult.authenticated || !authResult.user) {
+      window.location.href = getAuthRedirectUrl();
+      return;
     }
-  );
+    setUser({ name: authResult.user.name, email: authResult.user.email, avatar: authResult.user.avatar });
+    fetchCompany();
+  };
 
-  const { data } = await supabase
-    .from("featured_startups")
-    .select("*")
-    .eq("slug", slug)
-    .single();
+  const fetchCompany = async () => {
+    setIsLoading(true);
+    const { data, error } = await getCompanyBySlug(slug);
+    if (error || !data) {
+      setError("Company not found");
+      setIsLoading(false);
+      return;
+    }
+    setCompany(data);
+    setFormData({
+      name: data.name || "",
+      description: data.description || "",
+      website: data.website || "",
+      email: data.email || "",
+      country: data.country || "",
+      location: data.location || "",
+      industry: data.industry || "",
+      tags: data.tags || "",
+      seo_title: data.seo_title || "",
+      seo_description: data.seo_description || "",
+      is_published: data.is_published || false,
+    });
+    setLogoPreview(data.logo_url);
+    setIsLoading(false);
+  };
 
-  return data;
-}
+  const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !company) return;
+    const previewUrl = URL.createObjectURL(file);
+    setLogoPreview(previewUrl);
+    setIsUploading(true);
+    try {
+      const url = await uploadToCloudinary(file, "companies");
+      await saveCompany({ logo_url: url });
+      setLogoPreview(url);
+    } catch (err) {
+      console.error("Failed to upload logo:", err);
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
-export default async function CompanyProfilePage({ params }: Props) {
-  const { slug } = await params;
-  const company = await getCompany(slug);
+  const saveCompany = async (updates: Partial<FeaturedStartup>) => {
+    if (!company) return;
+    setIsSaving(true);
+    const { data, error } = await updateCompany(company.id, { ...formData, ...updates });
+    if (error) {
+      setError("Failed to save");
+    } else if (data) {
+      setCompany(data);
+    }
+    setIsSaving(false);
+  };
 
-  if (!company) {
+  const handleSave = () => saveCompany({});
+
+  const handleUnpublish = () => {
+    saveCompany({ is_published: false });
+    setShowUnpublishModal(false);
+  };
+
+  const handleDeleteCompany = async () => {
+    if (!company) return;
+    setDeletingId(company.id);
+    const { error } = await deleteCompany(company.id);
+    if (!error) {
+      window.location.href = "/";
+    } else {
+      setError("Failed to delete company");
+    }
+    setDeletingId(null);
+    setShowDeleteModal(false);
+  };
+
+  if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <Loader2 className="w-8 h-8 text-[#3182ce] animate-spin" />
+      </div>
+    );
+  }
+
+  if (error || !company) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
+        <p className="text-gray-500 mb-4">{error || "Company not found"}</p>
+        <Link href="/" className="text-[#3182ce] hover:underline">Go back home</Link>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <Navbar user={user || undefined} />
+      
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="mb-6">
+          <Link href={`/${slug}`} className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-[#3182ce] transition-colors">
+            <ArrowLeft className="w-4 h-4" />
+            Back to Company
+          </Link>
+        </div>
+
         <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-          <div className="h-32 bg-gradient-to-r from-[#3182ce] to-[#63b3ed]"></div>
+          <div className="h-20"></div>
           
           <div className="px-8 pb-8">
             <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 -mt-12 mb-6">
               <div className="flex items-end gap-4">
-                <div className="w-24 h-24 rounded-2xl bg-white border-4 border-white shadow-lg flex items-center justify-center overflow-hidden">
-                  {company.logo_url ? (
-                    <img
-                      src={company.logo_url}
-                      alt={company.name}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <Building2 className="w-10 h-10 text-gray-300" />
-                  )}
+                <div className="relative group">
+                  <div className="w-24 h-24 rounded-2xl bg-white border-4 border-white shadow-lg flex items-center justify-center overflow-hidden">
+                    {logoPreview ? (
+                      <img src={logoPreview} alt={company.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <Building2 className="w-10 h-10 text-gray-300" />
+                    )}
+                  </div>
+                  <label className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-2xl opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity">
+                    <input type="file" accept="image/*" className="hidden" onChange={handleLogoChange} />
+                    {isUploading ? <Loader2 className="w-5 h-5 text-white animate-spin" /> : <span className="text-xs text-white font-medium">Change</span>}
+                  </label>
                 </div>
                 <div className="pb-2">
                   <h1 className="text-2xl font-bold text-gray-900">{company.name}</h1>
@@ -71,6 +198,26 @@ export default async function CompanyProfilePage({ params }: Props) {
                     </p>
                   )}
                 </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => formData.is_published ? setShowUnpublishModal(true) : saveCompany({ is_published: true })}
+                  disabled={isSaving}
+                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl font-medium text-sm transition-colors ${
+                    formData.is_published
+                      ? "bg-green-100 text-green-700 hover:bg-green-200"
+                      : "bg-yellow-100 text-yellow-700 hover:bg-yellow-200"
+                  }`}
+                >
+                  {formData.is_published ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                  {formData.is_published ? "Published" : "Draft"}
+                </button>
+                <button
+                  onClick={() => setShowDeleteModal(true)}
+                  className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
+                >
+                  <Trash2 className="w-5 h-5" />
+                </button>
               </div>
             </div>
 
@@ -143,11 +290,225 @@ export default async function CompanyProfilePage({ params }: Props) {
           </div>
         </div>
 
-        <div className="mt-6 bg-white rounded-2xl border border-gray-200 p-8">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Company Settings</h2>
-          <p className="text-sm text-gray-500">Manage your company profile and settings here.</p>
+        <div className="mt-6 bg-white rounded-2xl border border-gray-200 p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-lg font-semibold text-gray-900">Edit Company Profile</h2>
+            <button
+              onClick={handleSave}
+              disabled={isSaving}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-[#3182ce] text-white rounded-xl font-medium text-sm hover:bg-[#2c5cb8] transition-colors disabled:opacity-50"
+            >
+              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              Save Changes
+            </button>
+          </div>
+
+          <div className="grid gap-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Company Name</label>
+              <input
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none transition-all"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Description / Bio</label>
+              <textarea
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                rows={4}
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none transition-all resize-none"
+                placeholder="Tell people about your company..."
+              />
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  <Globe className="w-4 h-4 inline mr-1" />
+                  Website
+                </label>
+                <input
+                  type="url"
+                  value={formData.website}
+                  onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+                  placeholder="https://example.com"
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  <Mail className="w-4 h-4 inline mr-1" />
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  placeholder="contact@company.com"
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none transition-all"
+                />
+              </div>
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  <MapPin className="w-4 h-4 inline mr-1" />
+                  Country
+                </label>
+                <input
+                  type="text"
+                  value={formData.country}
+                  onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+                  placeholder="e.g. Rwanda"
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  <MapPin className="w-4 h-4 inline mr-1" />
+                  Location
+                </label>
+                <input
+                  type="text"
+                  value={formData.location}
+                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                  placeholder="e.g. Kigali, Rwanda"
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none transition-all"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Industry</label>
+              <select
+                value={formData.industry}
+                onChange={(e) => setFormData({ ...formData, industry: e.target.value })}
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none transition-all bg-white"
+              >
+                <option value="">Select an industry</option>
+                {INDUSTRIES.map((ind) => (
+                  <option key={ind} value={ind}>{ind}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                <Tags className="w-4 h-4 inline mr-1" />
+                Tags
+              </label>
+              <input
+                type="text"
+                value={formData.tags}
+                onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
+                placeholder="Comma-separated tags"
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none transition-all"
+              />
+            </div>
+
+            <div className="pt-4 border-t border-gray-200">
+              <h3 className="text-md font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <FileText className="w-5 h-5" />
+                SEO Settings
+              </h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">SEO Title</label>
+                  <input
+                    type="text"
+                    value={formData.seo_title}
+                    onChange={(e) => setFormData({ ...formData, seo_title: e.target.value })}
+                    placeholder="Custom title for search engines"
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">SEO Description</label>
+                  <textarea
+                    value={formData.seo_description}
+                    onChange={(e) => setFormData({ ...formData, seo_description: e.target.value })}
+                    rows={3}
+                    placeholder="Custom description for search engines"
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none transition-all resize-none"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
+
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                <AlertTriangle className="w-6 h-6 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Delete Company</h3>
+                <p className="text-sm text-gray-500">This action cannot be undone</p>
+              </div>
+            </div>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to delete <strong>{company.name}</strong>? This will also delete all associated events and opportunities.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-xl transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteCompany}
+                disabled={deletingId === company.id}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-xl transition-colors disabled:opacity-50"
+              >
+                {deletingId === company.id ? <Loader2 className="w-4 h-4 animate-spin" /> : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showUnpublishModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
+                <EyeOff className="w-6 h-6 text-yellow-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Unpublish Company</h3>
+                <p className="text-sm text-gray-500">This will hide your company from the public</p>
+              </div>
+            </div>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to unpublish <strong>{company.name}</strong>? Users will no longer be able to see it until you publish it again.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowUnpublishModal(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-xl transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUnpublish}
+                className="px-4 py-2 text-sm font-medium text-white bg-yellow-600 hover:bg-yellow-700 rounded-xl transition-colors"
+              >
+                Unpublish
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

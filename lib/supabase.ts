@@ -71,6 +71,11 @@ export async function getUserCompanies(userId: string): Promise<{ data: UserComp
   return { data: data || [], error };
 }
 
+export async function getUserCompanyById(userId: string, companyId: string): Promise<{ data: UserCompany | null; error: Error | null }> {
+  const { data, error } = await supabase.from("user_company").select(`*, company:featured_startups(*)`).eq("user_id", userId).eq("company_id", companyId).single();
+  return { data, error };
+}
+
 export async function getAllCompanies(): Promise<{ data: FeaturedStartup[]; error: Error | null }> {
   const { data, error } = await supabase.from("featured_startups").select("*").order("created_at", { ascending: false });
   return { data: data || [], error };

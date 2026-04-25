@@ -12,6 +12,7 @@ A modern company management dashboard for managing events, opportunities, and co
 - **Opportunities Management** - Create, edit, delete jobs, internships, grants, tenders
 - **Applications** - View and filter applications for opportunities
 - **Admin Mode** - Admins can view all companies in the system
+- **Company Claim System** - Users can request to claim companies with approval workflow
 - **Responsive Design** - Works on desktop and mobile devices
 
 ## Tech Stack
@@ -111,7 +112,7 @@ Open [http://localhost:3001](http://localhost:3001) in your browser.
 - email (text)
 - country (text)
 - slug (varchar)
-- claimed (boolean)
+- claimed (boolean) - Set to true when someone requests to claim the company
 - is_featured (boolean)
 - is_published (boolean)
 - seo_title (text)
@@ -125,7 +126,7 @@ Open [http://localhost:3001](http://localhost:3001) in your browser.
 - user_id (uuid, references auth.users & authors)
 - company_id (uuid, references featured_startups)
 - role (creator | manager | employee)
-- status (confirmation_pending | active | rejected)
+- status (confirmation_pending | accepted | rejected | active)
 - added_by (uuid)
 - created_at (timestamp)
 
@@ -177,13 +178,23 @@ Open [http://localhost:3001](http://localhost:3001) in your browser.
 ### Claiming a Company
 - When claiming, a user_company record is created with status "confirmation_pending"
 - The featured_startups.claimed field is set to true
-- Admin approval required for full access
+- Admin approval required - status changes to "accepted" after admin approval
+- If rejected, user sees "Request Rejected" notice
+- If pending confirmation, user sees "Awaiting Approval" notice
+
+### Company Claim Status Flow
+1. **No claim requested**: User sees "Claim Company" button
+2. **Company already claimed** (featured_startups.claimed = true, no user_company): User sees "Already Claimed" notice, cannot claim
+3. **Pending confirmation** (user_company.status = "confirmation_pending"): User sees "Awaiting Approval" notice
+4. **Accepted/Active** (user_company.status = "accepted" or "active"): User can access the company
+5. **Rejected** (user_company.status = "rejected"): User sees "Request Rejected" notice
 
 ### Company Management
-- Edit company profile (name, description, logo, location, website, email, industry, country, tags)
+- Edit company profile at `/[slug]/profile` (name, description, logo, location, website, email, industry, country, tags)
 - SEO settings (title, description)
 - Publish/Unpublish toggle with confirmation modal
 - Delete company with confirmation modal
+- Manage company at `/[slug]` - Three menu cards: Profile, Events, Opportunities
 
 ### Events
 - List events with status badges
@@ -199,13 +210,29 @@ Open [http://localhost:3001](http://localhost:3001) in your browser.
 - Delete opportunity from menu
 
 ### Navigation Routes
-- Homepage: `/` - List of user's companies
-- Company page: `/[slug]` - Company with tabs (Profile, Events, Opportunities)
+- Homepage: `/` - List of user's companies with claim status
+- Company page: `/[slug]` - Company with three menu cards (Profile, Events, Opportunities)
+- Profile page: `/[slug]/profile` - Edit company profile and delete company
+- Events page: `/[slug]/events` - List company events, create new event
+- Opportunities page: `/[slug]/opportunities` - List company opportunities, create new opportunity
 - Event detail: `/[slug]/events/[event-id]`
 - Opportunity detail: `/[slug]/opportunities/[opp-id]`
 - Create event: `/[slug]/events/new`
 - Create opportunity: `/[slug]/opportunities/new`
 - Sign out: Redirects to auth app
+
+## Code Conventions
+
+### Dynamic Route Params
+In Next.js 16, dynamic route params are passed as Promises. Always unwrap with `use()`:
+```tsx
+import { use } from "react";
+
+export default function Page({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = use(params);
+  // ...
+}
+```
 
 ## License
 

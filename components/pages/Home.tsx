@@ -20,12 +20,28 @@ import { checkAuthClient, getAuthRedirectUrl } from "@/lib/auth-client";
 import CreateCompanyModal from "../parts/CreateCompanyModal";
 import Navbar from "../parts/Navbar";
 
-function UserBadge({ status }: { status: string }) {
-  if (status === "active") {
+function UserBadge({ status }: { status: string | null | undefined }) {
+  if (status === "accepted") {
     return (
       <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded-full">
         <CheckCircle className="w-3 h-3" />
         Active
+      </span>
+    );
+  }
+  if (status === "confirmation_pending") {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
+        <AlertCircle className="w-3 h-3" />
+        Awaiting Approval
+      </span>
+    );
+  }
+  if (status === "rejected") {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-100 text-red-700 text-xs font-medium rounded-full">
+        <AlertCircle className="w-3 h-3" />
+        Rejected
       </span>
     );
   }
@@ -268,7 +284,7 @@ function CompanyCard({
   deletingId,
 }: {
   company: FeaturedStartup;
-  status?: string;
+  status?: string | null;
   isAdmin?: boolean;
   onClaim: () => void;
   claiming: boolean;
@@ -276,6 +292,11 @@ function CompanyCard({
   deletingId?: string | null;
 }) {
   const [showMenu, setShowMenu] = useState(false);
+
+  const canAccess = status === "accepted" || status === "active";
+  const isPendingConfirmation = status === "confirmation_pending";
+  const isRejected = status === "rejected";
+  const isClaimed = company.claimed === true;
 
   return (
     <div className="group bg-white rounded-2xl border border-gray-200 hover:border-[#3182ce]/30 hover:shadow-lg transition-all overflow-hidden">
@@ -334,7 +355,14 @@ function CompanyCard({
           </div>
         )}
 
-        {!isAdmin && company.claimed && !status && (
+        {!isAdmin && isClaimed && !status && (
+          <div className="inline-flex items-center gap-2 text-sm font-medium text-gray-500">
+            <AlertCircle className="w-4 h-4" />
+            Already Claimed
+          </div>
+        )}
+
+        {!isAdmin && !isClaimed && !status && (
           <button
             onClick={onClaim}
             disabled={claiming}
@@ -351,7 +379,21 @@ function CompanyCard({
           </button>
         )}
 
-        {status && (
+        {isPendingConfirmation && (
+          <div className="inline-flex items-center gap-2 text-sm font-medium text-gray-500">
+            <AlertCircle className="w-4 h-4" />
+            Awaiting Approval
+          </div>
+        )}
+
+        {isRejected && (
+          <div className="inline-flex items-center gap-2 text-sm font-medium text-gray-500">
+            <AlertCircle className="w-4 h-4" />
+            Request Rejected
+          </div>
+        )}
+
+        {canAccess && (
           <a
             href={`/${company.slug || company.id}`}
             className="inline-flex items-center gap-2 text-sm font-medium text-[#3182ce] hover:text-[#2c5cb8] transition-colors"
