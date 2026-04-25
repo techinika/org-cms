@@ -18,7 +18,7 @@ import {
   FileText,
 } from "lucide-react";
 import { FeaturedStartup, INDUSTRIES } from "@/types/company";
-import { getCompanyBySlug, updateCompany, deleteCompany } from "@/lib/supabase";
+import { getCompanyBySlug, updateCompany, removeUserCompany } from "@/lib/supabase";
 import { checkAuthClient, getAuthRedirectUrl } from "@/lib/auth-client";
 import Navbar from "@/components/parts/Navbar";
 import Breadcrumb from "@/components/parts/Breadcrumb";
@@ -135,16 +135,16 @@ export default function CompanyProfilePage({
   const handleSave = () => saveCompany({});
 
   const handleDeleteCompany = async () => {
-    if (!company) return;
+    if (!company || !user) return;
     setDeletingId(company.id);
-    const { error } = await deleteCompany(company.id);
+    const { error } = await removeUserCompany(user.email, company.id);
     setDeletingId(null);
     setShowDeleteModal(false);
     if (error) {
-      setError("Failed to delete company");
-      showToast("Failed to delete company", "error");
+      setError("Failed to remove company");
+      showToast("Failed to remove company", "error");
     } else {
-      showToast("Company deleted successfully", "success");
+      showToast("Company removed from your account", "success");
       window.location.href = "/";
     }
   };
@@ -478,8 +478,8 @@ export default function CompanyProfilePage({
       {showDeleteModal && (
         <ConfirmationModal
           isOpen={showDeleteModal}
-          title="Delete Company"
-          message={`Are you sure you want to delete "${company.name}"? This will also delete all associated events and opportunities. This action cannot be undone.`}
+          title="Remove Company"
+          message={`Are you sure you want to remove "${company.name}" from your account? The company and all its events and opportunities will remain unchanged.`}
           onConfirm={handleDeleteCompany}
           onCancel={() => setShowDeleteModal(false)}
         />

@@ -11,6 +11,11 @@ export async function deleteCompany(id: string): Promise<{ error: Error | null }
   return { error };
 }
 
+export async function removeUserCompany(userId: string, companyId: string): Promise<{ error: Error | null }> {
+  const { error } = await supabase.from("user_company").delete().eq("user_id", userId).eq("company_id", companyId);
+  return { error };
+}
+
 export async function deleteEvent(id: string): Promise<{ error: Error | null }> {
   const { error } = await supabase.from("events").delete().eq("id", id);
   return { error };
