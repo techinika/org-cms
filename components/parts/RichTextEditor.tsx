@@ -26,6 +26,7 @@ export default function RichTextEditor({
   placeholder = "Start typing...",
 }: RichTextEditorProps) {
   const editor = useEditor({
+    immediatelyRender: false,
     extensions: [
       StarterKit,
       Placeholder.configure({

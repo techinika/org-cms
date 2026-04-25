@@ -7,11 +7,13 @@ A modern company management dashboard for managing events, opportunities, and co
 - **Company Management** - Add, claim, edit, and delete company profiles
 - **User Authentication** - Secure login via external auth system
 - **Company Profile** - Full editable profile (name, description, logo, location, website, email, industry, country, tags, SEO settings)
+- **Breadcrumb Navigation** - Navigation breadcrumbs on all pages for easy access to previous pages
 - **Publish/Unpublish** - Control company visibility (draft/published)
 - **Events Management** - Create, edit, delete events with full details
 - **Opportunities Management** - Create, edit, delete jobs, internships, grants, tenders
 - **Applications** - View and filter applications for opportunities
 - **Admin Mode** - Admins can view all companies in the system
+- **Company Claim System** - Users can request to claim companies with approval workflow
 - **Responsive Design** - Works on desktop and mobile devices
 
 ## Tech Stack
@@ -25,6 +27,58 @@ A modern company management dashboard for managing events, opportunities, and co
 
 ## Project Structure
 
+```
+org-cms/
+├── app/
+│   ├── [slug]/
+│   │   ├── page.tsx                     # Company main page with menu cards
+│   │   ├── profile/page.tsx            # Edit company profile
+│   │   ├── events/
+│   │   │   ├── page.tsx               # List company events
+│   │   │   ├── new/page.tsx             # Create new event
+│   │   │   └── [event-id]/
+│   │   │       ├── page.tsx              # Event menu hub
+│   │   │       ├── edit/page.tsx        # Edit event details
+│   │   │       ├── speakers/page.tsx     # Manage speakers
+│   │   │       ├── agenda/page.tsx       # Manage sessions
+│   │   │       ├── partners/page.tsx    # Manage partners/sponsors
+│   │   │       ├── registrations/page.tsx # View registrations
+│   │   │       └── stats/page.tsx       # View statistics
+│   │   └── opportunities/
+│   │       ├── page.tsx                # List opportunities
+│   │       ├── new/page.tsx            # Create new opportunity
+│   │       └── [opp-id]/page.tsx      # Opportunity detail with applications
+│   ├── globals.css
+│   ├── layout.tsx
+│   └── page.tsx                     # Homepage (company list)
+├── components/
+│   ├── pages/
+│   │   └── Home.tsx                 # Main dashboard
+│   ├── parts/
+│   │   ├── Navbar.tsx               # Top navigation bar
+│   │   ├── Breadcrumb.tsx           # Breadcrumb navigation
+│   │   └── CreateCompanyModal.tsx  # Add/claim company modal
+│   ├── ui/
+│   │   ├── Toast.tsx                # Toast notifications
+│   │   └── ConfirmationModal.tsx   # Confirmation dialogs
+│   ├── events/
+│   │   └── EventCard.tsx           # Event list item
+│   └── opportunities/
+│       ├── ApplicationList.tsx      # Paginated application list
+│       ├── ApplicationDetailModal.tsx # Application detail view
+│       ├── FeedbackModal.tsx          # Email feedback modal
+│       └── AIScoreModal.tsx          # AI comparison results
+├── lib/
+│   ├── auth.ts                      # Server-side auth utilities
+│   ├── auth-client.ts              # Client-side auth utilities
+│   ├── cloudinary.ts              # Image upload utilities
+│   ├── supabase.ts                # Supabase client & queries
+│   └── supabase-server.ts        # Server-side Supabase client
+├── types/
+│   └── company.ts                # TypeScript types
+├── .env                           # Environment variables
+├── package.json
+└── tsconfig.json
 ```
 org-cms/
 ├── app/
@@ -111,7 +165,7 @@ Open [http://localhost:3001](http://localhost:3001) in your browser.
 - email (text)
 - country (text)
 - slug (varchar)
-- claimed (boolean)
+- claimed (boolean) - Set to true when someone requests to claim the company
 - is_featured (boolean)
 - is_published (boolean)
 - seo_title (text)
@@ -125,7 +179,7 @@ Open [http://localhost:3001](http://localhost:3001) in your browser.
 - user_id (uuid, references auth.users & authors)
 - company_id (uuid, references featured_startups)
 - role (creator | manager | employee)
-- status (confirmation_pending | active | rejected)
+- status (confirmation_pending | accepted | rejected | active)
 - added_by (uuid)
 - created_at (timestamp)
 
@@ -177,13 +231,23 @@ Open [http://localhost:3001](http://localhost:3001) in your browser.
 ### Claiming a Company
 - When claiming, a user_company record is created with status "confirmation_pending"
 - The featured_startups.claimed field is set to true
-- Admin approval required for full access
+- Admin approval required - status changes to "accepted" after admin approval
+- If rejected, user sees "Request Rejected" notice
+- If pending confirmation, user sees "Awaiting Approval" notice
+
+### Company Claim Status Flow
+1. **No claim requested**: User sees "Claim Company" button
+2. **Company already claimed** (featured_startups.claimed = true, no user_company): User sees "Already Claimed" notice, cannot claim
+3. **Pending confirmation** (user_company.status = "confirmation_pending"): User sees "Awaiting Approval" notice
+4. **Accepted/Active** (user_company.status = "accepted" or "active"): User can access the company
+5. **Rejected** (user_company.status = "rejected"): User sees "Request Rejected" notice
 
 ### Company Management
-- Edit company profile (name, description, logo, location, website, email, industry, country, tags)
+- Edit company profile at `/[slug]/profile` (name, description, logo, location, website, email, industry, country, tags)
 - SEO settings (title, description)
 - Publish/Unpublish toggle with confirmation modal
 - Delete company with confirmation modal
+- Manage company at `/[slug]` - Three menu cards: Profile, Events, Opportunities
 
 ### Events
 - List events with status badges
@@ -195,17 +259,59 @@ Open [http://localhost:3001](http://localhost:3001) in your browser.
 - List opportunities with type badges
 - Create new opportunity at `/[slug]/opportunities/new`
 - Edit opportunity at `/[slug]/opportunities/[opp-id]`
-- View applications with filters (All/Pending/Accepted/Rejected)
+- Rich text editor for full description, requirements, and benefits (Tiptap WYSIWYG)
+- View applications with filters (All/Pending/In Review/Interview/Tech Exam/Contract/Hired/Rejected)
+- Pagination supports up to 1000+ applications
+- Individual application modal with full details (name, email, phone, location, cover letter, files)
+- File preview links for resume, supporting docs, and proposals (opens in browser)
+- Application progress workflow: In Review → Interview Pending → Technical Exam → Contract Signing → Hired
+- Rejection flow with customizable email message
+- **AI Applicant Comparison**: Click "AI Compare" button to rank applicants by compatibility score (0-100%)
+  - Uses Puter.js AI to analyze cover letters against job requirements
+  - Shows ranked list with scores and reasoning
+- **Email Notifications**: When updating application status, personalized email is sent to applicant via nodemailer
 - Delete opportunity from menu
 
+### Application Link
+- To use the built-in application form (instead of external link), set application_link to "apply"
+- This will make the opportunity accept applications through the CMS form
+
+## Environment Variables
+
+### SMTP (for sending emails)
+```
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=your-email@gmail.com
+SMTP_PASS=your-app-password
+SMTP_FROM=Your Name <your-email@gmail.com>
+```
+
 ### Navigation Routes
-- Homepage: `/` - List of user's companies
-- Company page: `/[slug]` - Company with tabs (Profile, Events, Opportunities)
+- Homepage: `/` - List of user's companies with claim status
+- Company page: `/[slug]` - Company with three menu cards (Profile, Events, Opportunities)
+- Profile page: `/[slug]/profile` - Edit company profile and delete company
+- Events page: `/[slug]/events` - List company events, create new event
+- Opportunities page: `/[slug]/opportunities` - List company opportunities, create new opportunity
 - Event detail: `/[slug]/events/[event-id]`
 - Opportunity detail: `/[slug]/opportunities/[opp-id]`
 - Create event: `/[slug]/events/new`
 - Create opportunity: `/[slug]/opportunities/new`
 - Sign out: Redirects to auth app
+
+## Code Conventions
+
+### Dynamic Route Params
+In Next.js 16, dynamic route params are passed as Promises. Always unwrap with `use()`:
+```tsx
+import { use } from "react";
+
+export default function Page({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = use(params);
+  // ...
+}
+```
 
 ## License
 
