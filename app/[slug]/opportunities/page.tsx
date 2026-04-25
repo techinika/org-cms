@@ -16,9 +16,13 @@ import { FeaturedStartup, Opportunity } from "@/types/company";
 import { getCompanyBySlug, getCompanyOpportunities, deleteOpportunity } from "@/lib/supabase";
 import { checkAuthClient, getAuthRedirectUrl } from "@/lib/auth-client";
 import Navbar from "@/components/parts/Navbar";
+import Breadcrumb from "@/components/parts/Breadcrumb";
+import ConfirmationModal from "@/components/ui/ConfirmationModal";
+import { useToast } from "@/components/ui/Toast";
 
 export default function CompanyOpportunitiesPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params);
+  const { showToast } = useToast();
   const [company, setCompany] = useState<FeaturedStartup | null>(null);
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -26,6 +30,7 @@ export default function CompanyOpportunitiesPage({ params }: { params: Promise<{
   const [user, setUser] = useState<{ name: string; email: string; avatar?: string } | null>(null);
   const [showMenu, setShowMenu] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<{ open: boolean; opp: Opportunity | null }>({ open: false, opp: null });
 
   useEffect(() => {
     checkAuth();
@@ -61,8 +66,26 @@ export default function CompanyOpportunitiesPage({ params }: { params: Promise<{
     const { error } = await deleteOpportunity(oppId);
     if (!error) {
       setOpportunities(opportunities.filter(o => o.id !== oppId));
+      showToast("Opportunity deleted successfully", "success");
+    } else {
+      showToast("Failed to delete opportunity", "error");
     }
     setDeletingId(null);
+    setShowMenu(null);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!confirmDelete.opp) return;
+    setDeletingId(confirmDelete.opp.id);
+    const { error } = await deleteOpportunity(confirmDelete.opp.id);
+    setDeletingId(null);
+    setConfirmDelete({ open: false, opp: null });
+    if (!error) {
+      setOpportunities(opportunities.filter(o => o.id !== confirmDelete.opp!.id));
+      showToast("Opportunity deleted successfully", "success");
+    } else {
+      showToast("Failed to delete opportunity", "error");
+    }
     setShowMenu(null);
   };
 
@@ -88,12 +111,10 @@ export default function CompanyOpportunitiesPage({ params }: { params: Promise<{
       <Navbar user={user || undefined} />
       
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-6">
-          <Link href={`/${slug}`} className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-[#3182ce] transition-colors">
-            <ArrowLeft className="w-4 h-4" />
-            Back to Company
-          </Link>
-        </div>
+        <Breadcrumb items={[
+          { label: "Company", href: `/${slug}` },
+          { label: "Opportunities", href: `/${slug}/opportunities` },
+        ]} />
 
         <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-6">
           <div className="flex items-center justify-between">
@@ -158,6 +179,9 @@ export default function CompanyOpportunitiesPage({ params }: { params: Promise<{
                   {opp.expires_at && (
                     <p className="text-sm text-gray-500">Due: {new Date(opp.expires_at).toLocaleDateString()}</p>
                   )}
+                  {opp.application_link && opp.application_link !== "apply" && (
+                    <p className="text-xs text-purple-600">{opp.external_link_clicks || 0} clicks</p>
+                  )}
                   <span className={`text-xs px-2 py-0.5 rounded-full ${
                     opp.status === 'Open' || opp.status === 'Closed' 
                       ? 'bg-green-100 text-green-700' 
@@ -176,7 +200,7 @@ export default function CompanyOpportunitiesPage({ params }: { params: Promise<{
                   {showMenu === opp.id && (
                     <div className="absolute right-0 top-full mt-1 w-40 bg-white rounded-xl shadow-lg border border-gray-200 py-1 z-10">
                       <button
-                        onClick={() => handleDeleteOpportunity(opp.id)}
+                        onClick={() => { setShowMenu(null); setConfirmDelete({ open: true, opp }); }}
                         disabled={deletingId === opp.id}
                         className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
                       >
@@ -191,6 +215,14 @@ export default function CompanyOpportunitiesPage({ params }: { params: Promise<{
           </div>
         )}
       </div>
+
+      <ConfirmationModal
+        isOpen={confirmDelete.open}
+        title="Delete Opportunity"
+        message={`Are you sure you want to delete "${confirmDelete.opp?.title}"? This action cannot be undone.`}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setConfirmDelete({ open: false, opp: null })}
+      />
     </div>
   );
 }

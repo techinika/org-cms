@@ -15,6 +15,7 @@ import { FeaturedStartup } from "@/types/company";
 import { getCompanyBySlug } from "@/lib/supabase";
 import { checkAuthClient, getAuthRedirectUrl } from "@/lib/auth-client";
 import Navbar from "@/components/parts/Navbar";
+import Breadcrumb from "@/components/parts/Breadcrumb";
 
 export default function CompanyPage({
   params,
@@ -85,15 +86,9 @@ export default function CompanyPage({
       <Navbar user={user || undefined} />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="mb-6">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-[#3182ce] transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Companies
-          </Link>
-        </div>
+        <Breadcrumb items={[
+          { label: company?.name || "Company", href: `/${slug}` },
+        ]} />
 
         <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
           <div className="h-16 md:h-20"></div>

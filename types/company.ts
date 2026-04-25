@@ -55,8 +55,8 @@ export interface AuthUser {
   isAdmin?: boolean;
 }
 
-export type EventFormat = "Online" | "In-Person" | "Hybrid";
-export type EventStatus = "Upcoming" | "Ongoing" | "Completed" | "Cancelled";
+export type EventFormat = "Webinar" | "Conference" | "Workshop" | "Networking" | "Launch" | "Hackathon";
+export type EventStatus = "Upcoming" | "Past" | "Featured" | "Happening";
 
 export interface Event {
   id: string;
@@ -80,12 +80,12 @@ export interface Event {
   is_featured: boolean;
   views: number;
   external_link: string | null;
-  external_link_clicks?: string;
+  external_link_clicks: string;
 }
 
 export type OpportunityType = "Job" | "Tender" | "Grant" | "Internship" | "Other";
-export type WorkMode = "Remote" | "On-Site" | "Hybrid";
-export type EmploymentType = "Full-Time" | "Part-Time" | "Contract" | "Internship";
+export type WorkMode = "Remote" | "On-Site" | "Hybrid" | "In-person";
+export type EmploymentType = "Full-Time" | "Part-Time" | "Contract" | "Temporary" | "Volunteering" | "Task" | "Internship";
 export type OpportunityStatus = "Open" | "Closed" | "Draft";
 
 export interface Opportunity {
@@ -109,6 +109,7 @@ export interface Opportunity {
   status: OpportunityStatus;
   featured: boolean;
   views: number;
+  external_link_clicks: number;
   expires_at: string | null;
   seo_description: string | null;
   lang: string;
@@ -119,7 +120,8 @@ export interface Opportunity {
   application_type: string;
 }
 
-export type ApplicationStatus = "pending" | "reviewed" | "accepted" | "rejected";
+export type ApplicationProgress = "pending" | "in_review" | "interview_pending" | "technical_exam_pending" | "contract_signing_pending" | "not_proceeding" | "hired" | "quit" | "rejected";
+export type ApplicationStatus = "in_review" | "interview_pending" | "hired" | "quit" | "contract_sign_pending" | "starting_job_pending" | "started_internship" | "started_job" | "rejected";
 
 export interface Application {
   id: string;
@@ -210,9 +212,10 @@ export interface EventMetaDetails {
 }
 
 export const OPPORTUNITY_TYPES = ["Job", "Tender", "Grant", "Internship", "Other"] as const;
-export const WORK_MODES = ["Remote", "On-Site", "Hybrid"] as const;
-export const EMPLOYMENT_TYPES = ["Full-Time", "Part-Time", "Contract", "Internship"] as const;
-export const EVENT_FORMATS = ["Online", "In-Person", "Hybrid"] as const;
+export const WORK_MODES = ["Remote", "On-Site", "Hybrid", "In-person"] as const;
+export const EMPLOYMENT_TYPES = ["Full-Time", "Part-Time", "Contract", "Temporary", "Volunteering", "Task", "Internship"] as const;
+export const APPLICATION_PROGRESS = ["pending", "in_review", "interview_pending", "technical_exam_pending", "contract_signing_pending", "not_proceeding", "hired", "quit", "rejected"] as const;
+export const EVENT_FORMATS = ["Webinar", "Conference", "Workshop", "Networking", "Launch", "Hackathon"] as const;
 
 export const INDUSTRIES = [
   "Agriculture",

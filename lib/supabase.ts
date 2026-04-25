@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { FeaturedStartup, UserCompany, Event, Opportunity, Application, EventRegistration, EventTicket, EventSchedule, EventCompany, EventMetaDetails } from "@/types/company";
+import { FeaturedStartup, UserCompany, Event, Opportunity, Application, EventRegistration, EventTicket, EventSchedule, EventCompany, EventMetaDetails, ApplicationFeedback } from "@/types/company";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_PROJECT_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_API_KEY!;
@@ -31,9 +31,20 @@ export async function updateOpportunity(id: string, updates: Partial<Opportunity
   return { data, error };
 }
 
-export async function getOpportunityApplications(oppId: string): Promise<{ data: Application[]; error: Error | null }> {
-  const { data, error } = await supabase.from("applications").select("*").eq("opportunity_id", oppId).order("created_at", { ascending: false });
-  return { data: data || [], error };
+export async function incrementOpportunityLinkClicks(id: string): Promise<{ error: Error | null }> {
+  const { error } = await supabase.rpc("increment_external_link_clicks", { opp_id: id });
+  return { error };
+}
+
+export async function getOpportunityApplications(oppId: string, page = 1, limit = 50): Promise<{ data: Application[]; total: number; error: Error | null }> {
+  const offset = (page - 1) * limit;
+  const { data, error, count } = await supabase
+    .from("applications")
+    .select("*", { count: "exact" })
+    .eq("opportunity_id", oppId)
+    .order("created_at", { ascending: false })
+    .range(offset, offset + limit - 1);
+  return { data: data || [], total: count || 0, error };
 }
 
 export async function getEventById(id: string): Promise<{ data: Event | null; error: Error | null }> {
@@ -52,7 +63,26 @@ export async function getCompanyBySlug(slug: string): Promise<{ data: FeaturedSt
 }
 
 export async function updateCompany(id: string, updates: Partial<FeaturedStartup>): Promise<{ data: FeaturedStartup | null; error: Error | null }> {
-  const { data, error } = await supabase.from("featured_startups").update({ ...updates, updated_at: new Date().toISOString() }).eq("id", id).select().single();
+  const validFields = {
+    name: updates.name,
+    description: updates.description,
+    logo_url: updates.logo_url,
+    learn_more_links: updates.learn_more_links,
+    email: updates.email,
+    country: updates.country,
+    website: updates.website,
+    location: updates.location,
+    industry: updates.industry,
+    status: updates.status,
+    tags: updates.tags,
+    reviews_count: updates.reviews_count,
+    avg_rating: updates.avg_rating,
+    roles: updates.roles,
+    is_featured: updates.is_featured,
+    slug: updates.slug,
+    claimed: updates.claimed,
+  };
+  const { data, error } = await supabase.from("featured_startups").update({ ...validFields, updated_at: new Date().toISOString() }).eq("id", id).select().single();
   return { data, error };
 }
 
@@ -131,7 +161,7 @@ export async function addCompanyUser(companyId: string, userEmail: string, role:
 export async function updateCompanyUser(userCompanyId: string, updates: { role?: string; status?: string }): Promise<{ data: UserCompany | null; error: Error | null }> {
   const { data, error } = await supabase
     .from("user_company")
-    .update(updates)
+    .update({ ...updates, updated_at: new Date().toISOString() })
     .eq("id", userCompanyId)
     .select()
     .single();
@@ -155,7 +185,7 @@ export async function createEventSchedule(schedule: Partial<EventSchedule>): Pro
 }
 
 export async function updateEventSchedule(id: string, updates: Partial<EventSchedule>): Promise<{ data: EventSchedule | null; error: Error | null }> {
-  const { data, error } = await supabase.from("event_schedules").update(updates).eq("id", id).select().single();
+  const { data, error } = await supabase.from("event_schedules").update({ ...updates, updated_at: new Date().toISOString() }).eq("id", id).select().single();
   return { data, error };
 }
 
@@ -175,11 +205,28 @@ export async function createEventTicket(ticket: Partial<EventTicket>): Promise<{
 }
 
 export async function updateEventTicket(id: string, updates: Partial<EventTicket>): Promise<{ data: EventTicket | null; error: Error | null }> {
-  const { data, error } = await supabase.from("event_tickets").update(updates).eq("id", id).select().single();
+  const { data, error } = await supabase.from("event_tickets").update({ ...updates, updated_at: new Date().toISOString() }).eq("id", id).select().single();
   return { data, error };
 }
 
 export async function deleteEventTicket(id: string): Promise<{ error: Error | null }> {
   const { error } = await supabase.from("event_tickets").delete().eq("id", id);
   return { error };
+}
+
+export async function updateApplicationFeedback(applicationId: string, status: string, message?: string, reviewerId?: string): Promise<{ data: ApplicationFeedback | null; error: Error | null }> {
+  const { data: existing } = await supabase.from("applications_feedback").select("id").eq("application_id", applicationId).single();
+  
+  if (existing) {
+    const { data, error } = await supabase.from("applications_feedback").update({ status, feedback_message: message, reviewer_id: reviewerId }).eq("id", existing.id).select().single();
+    return { data, error };
+  } else {
+    const { data, error } = await supabase.from("applications_feedback").insert({ application_id: applicationId, status, feedback_message: message, reviewer_id: reviewerId }).select().single();
+    return { data, error };
+  }
+}
+
+export async function getApplicationFeedback(applicationId: string): Promise<{ data: ApplicationFeedback[]; error: Error | null }> {
+  const { data, error } = await supabase.from("applications_feedback").select("*").eq("application_id", applicationId).order("created_at", { ascending: false });
+  return { data: data || [], error };
 }

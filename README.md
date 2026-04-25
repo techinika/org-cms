@@ -7,6 +7,7 @@ A modern company management dashboard for managing events, opportunities, and co
 - **Company Management** - Add, claim, edit, and delete company profiles
 - **User Authentication** - Secure login via external auth system
 - **Company Profile** - Full editable profile (name, description, logo, location, website, email, industry, country, tags, SEO settings)
+- **Breadcrumb Navigation** - Navigation breadcrumbs on all pages for easy access to previous pages
 - **Publish/Unpublish** - Control company visibility (draft/published)
 - **Events Management** - Create, edit, delete events with full details
 - **Opportunities Management** - Create, edit, delete jobs, internships, grants, tenders
@@ -26,6 +27,58 @@ A modern company management dashboard for managing events, opportunities, and co
 
 ## Project Structure
 
+```
+org-cms/
+├── app/
+│   ├── [slug]/
+│   │   ├── page.tsx                     # Company main page with menu cards
+│   │   ├── profile/page.tsx            # Edit company profile
+│   │   ├── events/
+│   │   │   ├── page.tsx               # List company events
+│   │   │   ├── new/page.tsx             # Create new event
+│   │   │   └── [event-id]/
+│   │   │       ├── page.tsx              # Event menu hub
+│   │   │       ├── edit/page.tsx        # Edit event details
+│   │   │       ├── speakers/page.tsx     # Manage speakers
+│   │   │       ├── agenda/page.tsx       # Manage sessions
+│   │   │       ├── partners/page.tsx    # Manage partners/sponsors
+│   │   │       ├── registrations/page.tsx # View registrations
+│   │   │       └── stats/page.tsx       # View statistics
+│   │   └── opportunities/
+│   │       ├── page.tsx                # List opportunities
+│   │       ├── new/page.tsx            # Create new opportunity
+│   │       └── [opp-id]/page.tsx      # Opportunity detail with applications
+│   ├── globals.css
+│   ├── layout.tsx
+│   └── page.tsx                     # Homepage (company list)
+├── components/
+│   ├── pages/
+│   │   └── Home.tsx                 # Main dashboard
+│   ├── parts/
+│   │   ├── Navbar.tsx               # Top navigation bar
+│   │   ├── Breadcrumb.tsx           # Breadcrumb navigation
+│   │   └── CreateCompanyModal.tsx  # Add/claim company modal
+│   ├── ui/
+│   │   ├── Toast.tsx                # Toast notifications
+│   │   └── ConfirmationModal.tsx   # Confirmation dialogs
+│   ├── events/
+│   │   └── EventCard.tsx           # Event list item
+│   └── opportunities/
+│       ├── ApplicationList.tsx      # Paginated application list
+│       ├── ApplicationDetailModal.tsx # Application detail view
+│       ├── FeedbackModal.tsx          # Email feedback modal
+│       └── AIScoreModal.tsx          # AI comparison results
+├── lib/
+│   ├── auth.ts                      # Server-side auth utilities
+│   ├── auth-client.ts              # Client-side auth utilities
+│   ├── cloudinary.ts              # Image upload utilities
+│   ├── supabase.ts                # Supabase client & queries
+│   └── supabase-server.ts        # Server-side Supabase client
+├── types/
+│   └── company.ts                # TypeScript types
+├── .env                           # Environment variables
+├── package.json
+└── tsconfig.json
 ```
 org-cms/
 ├── app/
@@ -206,8 +259,34 @@ Open [http://localhost:3001](http://localhost:3001) in your browser.
 - List opportunities with type badges
 - Create new opportunity at `/[slug]/opportunities/new`
 - Edit opportunity at `/[slug]/opportunities/[opp-id]`
-- View applications with filters (All/Pending/Accepted/Rejected)
+- Rich text editor for full description, requirements, and benefits (Tiptap WYSIWYG)
+- View applications with filters (All/Pending/In Review/Interview/Tech Exam/Contract/Hired/Rejected)
+- Pagination supports up to 1000+ applications
+- Individual application modal with full details (name, email, phone, location, cover letter, files)
+- File preview links for resume, supporting docs, and proposals (opens in browser)
+- Application progress workflow: In Review → Interview Pending → Technical Exam → Contract Signing → Hired
+- Rejection flow with customizable email message
+- **AI Applicant Comparison**: Click "AI Compare" button to rank applicants by compatibility score (0-100%)
+  - Uses Puter.js AI to analyze cover letters against job requirements
+  - Shows ranked list with scores and reasoning
+- **Email Notifications**: When updating application status, personalized email is sent to applicant via nodemailer
 - Delete opportunity from menu
+
+### Application Link
+- To use the built-in application form (instead of external link), set application_link to "apply"
+- This will make the opportunity accept applications through the CMS form
+
+## Environment Variables
+
+### SMTP (for sending emails)
+```
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=your-email@gmail.com
+SMTP_PASS=your-app-password
+SMTP_FROM=Your Name <your-email@gmail.com>
+```
 
 ### Navigation Routes
 - Homepage: `/` - List of user's companies with claim status

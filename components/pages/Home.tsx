@@ -19,6 +19,8 @@ import { getUserCompanies, getAllCompanies, claimCompany, deleteCompany } from "
 import { checkAuthClient, getAuthRedirectUrl } from "@/lib/auth-client";
 import CreateCompanyModal from "../parts/CreateCompanyModal";
 import Navbar from "../parts/Navbar";
+import ConfirmationModal from "../ui/ConfirmationModal";
+import { useToast } from "../ui/Toast";
 
 function UserBadge({ status }: { status: string | null | undefined }) {
   if (status === "accepted") {
@@ -54,6 +56,7 @@ function UserBadge({ status }: { status: string | null | undefined }) {
 }
 
 function CompanyDashboardContent() {
+  const { showToast } = useToast();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [userCompanies, setUserCompanies] = useState<UserCompany[]>([]);
   const [allCompanies, setAllCompanies] = useState<FeaturedStartup[]>([]);
@@ -64,6 +67,7 @@ function CompanyDashboardContent() {
   const [error, setError] = useState<string | null>(null);
   const [claimingCompanyId, setClaimingCompanyId] = useState<string | null>(null);
   const [deletingCompanyId, setDeletingCompanyId] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<{ open: boolean; companyId: string | null }>({ open: false, companyId: null });
 
   useEffect(() => {
     checkAuth();
@@ -134,9 +138,10 @@ function CompanyDashboardContent() {
     setDeletingCompanyId(companyId);
     const { error } = await deleteCompany(companyId);
     if (!error) {
+      showToast("Company deleted successfully", "success");
       await checkAuth();
     } else {
-      setError("Failed to delete company");
+      showToast("Failed to delete company", "error");
     }
     setDeletingCompanyId(null);
   };
@@ -257,6 +262,8 @@ function CompanyDashboardContent() {
                   claiming={claimingCompanyId === company.id}
                   onDelete={handleDeleteCompany}
                   deletingId={deletingCompanyId}
+                  confirmDelete={confirmDelete}
+                  setConfirmDelete={setConfirmDelete}
                 />
               );
             })}
@@ -270,6 +277,17 @@ function CompanyDashboardContent() {
         onCreated={handleCompanyCreated}
         userId={user?.id}
       />
+
+      <ConfirmationModal
+        isOpen={confirmDelete.open}
+        title="Delete Company"
+        message={`Are you sure you want to delete this company? This will also delete all associated events and opportunities. This action cannot be undone.`}
+        onConfirm={() => {
+          if (confirmDelete.companyId) handleDeleteCompany(confirmDelete.companyId);
+          setConfirmDelete({ open: false, companyId: null });
+        }}
+        onCancel={() => setConfirmDelete({ open: false, companyId: null })}
+      />
     </div>
   );
 }
@@ -282,6 +300,8 @@ function CompanyCard({
   claiming,
   onDelete,
   deletingId,
+  confirmDelete,
+  setConfirmDelete,
 }: {
   company: FeaturedStartup;
   status?: string | null;
@@ -290,6 +310,8 @@ function CompanyCard({
   claiming: boolean;
   onDelete?: (id: string) => void;
   deletingId?: string | null;
+  confirmDelete?: { open: boolean; companyId: string | null };
+  setConfirmDelete?: (val: { open: boolean; companyId: string | null }) => void;
 }) {
   const [showMenu, setShowMenu] = useState(false);
 
@@ -322,12 +344,12 @@ function CompanyCard({
               >
                 <MoreVertical className="w-5 h-5 text-gray-400" />
               </button>
-              {showMenu && onDelete && (
+              {showMenu && onDelete && setConfirmDelete && (
                 <div className="absolute right-0 top-full mt-1 w-40 bg-white rounded-xl shadow-lg border border-gray-200 py-1 z-10">
                   <button
                     onClick={() => {
-                      onDelete(company.id);
                       setShowMenu(false);
+                      setConfirmDelete({ open: true, companyId: company.id });
                     }}
                     disabled={deletingId === company.id}
                     className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
