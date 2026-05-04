@@ -22,7 +22,7 @@ import { getCompanyBySlug, updateCompany, removeUserCompany } from "@/lib/supaba
 import { checkAuthClient, getAuthRedirectUrl } from "@/lib/auth-client";
 import Navbar from "@/components/parts/Navbar";
 import Breadcrumb from "@/components/parts/Breadcrumb";
-import { uploadToCloudinary } from "@/lib/cloudinary";
+import { uploadToImageKit } from "@/lib/imagekit";
 import ConfirmationModal from "@/components/ui/ConfirmationModal";
 import { useToast } from "@/components/ui/Toast";
 
@@ -105,11 +105,25 @@ export default function CompanyProfilePage({
     setLogoPreview(previewUrl);
     setIsUploading(true);
     try {
-      const url = await uploadToCloudinary(file, "companies");
-      await saveCompany({ logo_url: url });
-      setLogoPreview(url);
+      const result = await fetch("/api/upload-image", {
+        method: "POST",
+        body: (() => {
+          const fd = new FormData();
+          fd.append("file", file);
+          fd.append("folder", "companies");
+          return fd;
+        })(),
+      }).then(r => r.json());
+      
+      if (result.asset_id) {
+        await saveCompany({ logo_url: result.url, image_ref: result.asset_id });
+        setLogoPreview(result.url);
+      } else {
+        throw new Error(result.error || "Upload failed");
+      }
     } catch (err) {
       console.error("Failed to upload logo:", err);
+      showToast("Failed to upload logo", "error");
     } finally {
       setIsUploading(false);
     }

@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { FeaturedStartup } from "@/types/company";
 import { supabase, searchCompanies } from "@/lib/supabase";
-import { uploadToCloudinary } from "@/lib/cloudinary";
+import { uploadToImageKit } from "@/lib/imagekit";
 
 interface Props {
   isOpen: boolean;
@@ -36,6 +36,7 @@ export default function CreateCompanyModal({
     name: "",
     description: "",
     logo_url: "",
+    image_ref: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [selectedCompany, setSelectedCompany] = useState<FeaturedStartup | null>(null);
@@ -45,7 +46,7 @@ export default function CreateCompanyModal({
 
   useEffect(() => {
     if (!isOpen) {
-      setFormData({ name: "", description: "", logo_url: "" });
+      setFormData({ name: "", description: "", logo_url: "", image_ref: "" });
       setLogoPreview(null);
       setSearchQuery("");
       setSearchResults([]);
@@ -91,8 +92,21 @@ export default function CreateCompanyModal({
 
     setIsUploading(true);
     try {
-      const url = await uploadToCloudinary(file, "companies");
-      setFormData((prev) => ({ ...prev, logo_url: url }));
+      const result = await fetch("/api/upload-image", {
+        method: "POST",
+        body: (() => {
+          const fd = new FormData();
+          fd.append("file", file);
+          fd.append("folder", "companies");
+          return fd;
+        })(),
+      }).then(r => r.json());
+
+      if (result.asset_id) {
+        setFormData((prev) => ({ ...prev, logo_url: result.url, image_ref: result.asset_id }));
+      } else {
+        throw new Error(result.error || "Upload failed");
+      }
     } catch (error) {
       console.error("Failed to upload logo:", error);
       setErrors((prev) => ({ ...prev, logo: "Failed to upload logo" }));
@@ -169,9 +183,8 @@ const slugify = (text: string) =>
           name: formData.name,
           description: formData.description,
           slug: tempSlug,
-          logo_url:
-            logoPreview ||
-            "https://res.cloudinary.com/dr4j56nk5/image/upload/v1774222201/company_nzdnak.png",
+          logo_url: formData.logo_url || "https://ik.imagekit.io/default/company_placeholder.png",
+          image_ref: formData.image_ref || null,
           lang: "en",
           is_featured: true,
           claimed: false,
@@ -193,10 +206,7 @@ const slugify = (text: string) =>
       onClose();
     } catch (error) {
       console.error("Failed to create company:", error);
-      setErrors((prev) => ({
-        ...prev,
-        submit: "Failed to create company. Please try again.",
-      }));
+      setErrors((prev) => ({ ...prev, submit: "Failed to create company" }));
     } finally {
       setIsLoading(false);
     }

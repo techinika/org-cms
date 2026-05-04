@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { FeaturedStartup, UserCompany, Event, Opportunity, Application, EventRegistration, EventTicket, EventSchedule, EventCompany, EventMetaDetails, ApplicationFeedback } from "@/types/company";
+import { FeaturedStartup, UserCompany, Event, Opportunity, Application, EventRegistration, EventTicket, EventSchedule, EventCompany, EventMetaDetails, ApplicationFeedback, Asset } from "@/types/company";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_PROJECT_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_API_KEY!;
@@ -217,6 +217,37 @@ export async function updateEventTicket(id: string, updates: Partial<EventTicket
 export async function deleteEventTicket(id: string): Promise<{ error: Error | null }> {
   const { error } = await supabase.from("event_tickets").delete().eq("id", id);
   return { error };
+}
+
+export async function updateEventRegistration(regId: string, updates: { status?: string; checked_in?: boolean }): Promise<{ error: Error | null }> {
+  const { error } = await supabase.from("event_registrations").update(updates).eq("id", regId);
+  return { error };
+}
+
+export async function createAsset(asset: {
+  url: string;
+  file_name: string;
+  file_type: string;
+  file_size: number;
+  width?: number | null;
+  height?: number | null;
+  imagekit_file_id: string;
+}): Promise<{ data: Asset | null; error: Error | null }> {
+  const { data, error } = await supabase
+    .from("assets")
+    .insert(asset)
+    .select()
+    .single();
+  return { data, error };
+}
+
+export async function getAssetById(id: string): Promise<{ data: Asset | null; error: Error | null }> {
+  const { data, error } = await supabase
+    .from("assets")
+    .select("*")
+    .eq("id", id)
+    .single();
+  return { data, error };
 }
 
 export async function updateApplicationFeedback(applicationId: string, status: string, message?: string, reviewerId?: string): Promise<{ data: ApplicationFeedback | null; error: Error | null }> {

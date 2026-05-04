@@ -37,12 +37,16 @@ export default function EditEventPage({ params }: Props) {
     status: "Upcoming",
     publish_status: "draft",
     start_date: "",
+    start_time: "",
     end_date: "",
+    end_time: "",
     seo_description: "",
     full_description: "",
     tags: "",
     external_link: "",
   });
+
+  const [dateError, setDateError] = useState<string | null>(null);
 
   useEffect(() => {
     checkAuth();
@@ -74,7 +78,9 @@ export default function EditEventPage({ params }: Props) {
       status: data.status || "Upcoming",
       publish_status: data.publish_status || "draft",
       start_date: data.start_date ? data.start_date.split("T")[0] : "",
+      start_time: data.start_date ? data.start_date.split("T")[1]?.slice(0, 5) || "" : "",
       end_date: data.end_date ? data.end_date.split("T")[0] : "",
+      end_time: data.end_date ? data.end_date.split("T")[1]?.slice(0, 5) || "" : "",
       seo_description: data.seo_description || "",
       full_description: data.full_description || "",
       tags: data.tags || "",
@@ -85,15 +91,34 @@ export default function EditEventPage({ params }: Props) {
 
   const handleSave = async () => {
     if (!event) return;
+
+    setDateError(null);
+    if (formData.start_date && formData.end_date) {
+      const start = new Date(formData.start_date + (formData.start_time ? "T" + formData.start_time : "T00:00"));
+      const end = new Date(formData.end_date + (formData.end_time ? "T" + formData.end_time : "T00:00"));
+      if (end < start) {
+        setDateError("End date/time cannot be before start date/time");
+        return;
+      }
+    }
+
     setIsSaving(true);
+
+    const startDateTime = formData.start_date
+      ? new Date(formData.start_date + (formData.start_time ? "T" + formData.start_time : "T00:00")).toISOString()
+      : null;
+    const endDateTime = formData.end_date
+      ? new Date(formData.end_date + (formData.end_time ? "T" + formData.end_time : "T00:00")).toISOString()
+      : null;
+
     const { data, error } = await updateEvent(eventId, {
       title: formData.title,
       location: formData.location || null,
       format: formData.format as Event["format"],
       status: formData.status as Event["status"],
       publish_status: formData.publish_status,
-      start_date: formData.start_date ? new Date(formData.start_date).toISOString() : null,
-      end_date: formData.end_date ? new Date(formData.end_date).toISOString() : null,
+      start_date: startDateTime,
+      end_date: endDateTime,
       seo_description: formData.seo_description || null,
       full_description: formData.full_description || null,
       tags: formData.tags || null,
@@ -189,22 +214,49 @@ export default function EditEventPage({ params }: Props) {
 
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Start Date</label>
-                <input
-                  type="date"
-                  value={formData.start_date}
-                  onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none"
-                />
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Start Date & Time</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="date"
+                    value={formData.start_date}
+                    onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none"
+                  />
+                  <input
+                    type="time"
+                    value={formData.start_time}
+                    onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none"
+                  />
+                </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">End Date</label>
-                <input
-                  type="date"
-                  value={formData.end_date}
-                  onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none"
-                />
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">End Date & Time</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="date"
+                    value={formData.end_date}
+                    onChange={(e) => {
+                      const newEndDate = e.target.value;
+                      if (formData.start_date && newEndDate && newEndDate < formData.start_date) {
+                        setDateError("End date cannot be before start date");
+                      } else {
+                        setDateError(null);
+                      }
+                      setFormData({ ...formData, end_date: newEndDate });
+                    }}
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none"
+                  />
+                  <input
+                    type="time"
+                    value={formData.end_time}
+                    onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none"
+                  />
+                </div>
+                {dateError && (
+                  <p className="text-sm text-red-600 mt-1">{dateError}</p>
+                )}
               </div>
             </div>
 

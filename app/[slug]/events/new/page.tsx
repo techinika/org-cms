@@ -33,14 +33,17 @@ export default function NewEventPage({ params }: Props) {
     location: "",
     format: "Conference",
     status: "Upcoming",
-    publish_status: "draft",
     start_date: "",
+    start_time: "",
     end_date: "",
+    end_time: "",
     seo_description: "",
     full_description: "",
     tags: "",
     external_link: "",
   });
+
+  const [dateError, setDateError] = useState<string | null>(null);
 
   const fetchCompany = async () => {
     const { data } = await supabase.from("featured_startups").select("id").eq("slug", slug).single();
@@ -65,23 +68,40 @@ export default function NewEventPage({ params }: Props) {
   }, [slug]);
 
   const handleSubmit = async () => {
+    setDateError(null);
     if (!companyId || !formData.title) {
       setError("Please fill in required fields");
       return;
     }
 
+    if (formData.start_date && formData.end_date) {
+      const start = new Date(formData.start_date + (formData.start_time || "T00:00"));
+      const end = new Date(formData.end_date + (formData.end_time || "T00:00"));
+      if (end < start) {
+        setDateError("End date/time cannot be before start date/time");
+        return;
+      }
+    }
+
     setIsSaving(true);
     const eventSlug = formData.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") + "-" + Date.now().toString(36);
 
-    const { error: insertError } = await supabase.from("events").insert({
+    const startDateTime = formData.start_date
+      ? new Date(formData.start_date + (formData.start_time ? "T" + formData.start_time : "T00:00")).toISOString()
+      : null;
+    const endDateTime = formData.end_date
+      ? new Date(formData.end_date + (formData.end_time ? "T" + formData.end_time : "T00:00")).toISOString()
+      : null;
+
+    const { data, error: insertError } = await supabase.from("events").insert({
       title: formData.title,
       slug: eventSlug,
       location: formData.location || null,
       format: formData.format,
       status: formData.status,
-      publish_status: formData.publish_status,
-      start_date: formData.start_date ? new Date(formData.start_date).toISOString() : null,
-      end_date: formData.end_date ? new Date(formData.end_date).toISOString() : null,
+      publish_status: "draft",
+      start_date: startDateTime,
+      end_date: endDateTime,
       seo_description: formData.seo_description || null,
       full_description: formData.full_description || null,
       tags: formData.tags || null,
@@ -90,7 +110,7 @@ export default function NewEventPage({ params }: Props) {
       is_featured: false,
       views: 0,
       lang: "en",
-    });
+    }).select().single();
 
     if (insertError) {
       setError("Failed to create event");
@@ -98,7 +118,7 @@ export default function NewEventPage({ params }: Props) {
       return;
     }
 
-    window.location.href = `/${slug}/events`;
+    window.location.href = `/${slug}/events/${data.id}/review`;
   };
 
   if (isLoading) {
@@ -174,18 +194,6 @@ export default function NewEventPage({ params }: Props) {
                   <option value="Past">Past</option>
                 </select>
               </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Publish Status</label>
-                <select
-                  value={formData.publish_status}
-                  onChange={(e) => setFormData({ ...formData, publish_status: e.target.value })}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none bg-white"
-                >
-                  <option value="draft">Draft</option>
-                  <option value="published">Published</option>
-                </select>
-              </div>
             </div>
 
             <div>
@@ -203,22 +211,49 @@ export default function NewEventPage({ params }: Props) {
 
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Start Date</label>
-                <input
-                  type="date"
-                  value={formData.start_date}
-                  onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none"
-                />
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Start Date & Time</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="date"
+                    value={formData.start_date}
+                    onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none"
+                  />
+                  <input
+                    type="time"
+                    value={formData.start_time}
+                    onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none"
+                  />
+                </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">End Date</label>
-                <input
-                  type="date"
-                  value={formData.end_date}
-                  onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none"
-                />
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">End Date & Time</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="date"
+                    value={formData.end_date}
+                    onChange={(e) => {
+                      const newEndDate = e.target.value;
+                      if (formData.start_date && newEndDate && newEndDate < formData.start_date) {
+                        setDateError("End date cannot be before start date");
+                      } else {
+                        setDateError(null);
+                      }
+                      setFormData({ ...formData, end_date: newEndDate });
+                    }}
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none"
+                  />
+                  <input
+                    type="time"
+                    value={formData.end_time}
+                    onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none"
+                  />
+                </div>
+                {dateError && (
+                  <p className="text-sm text-red-600 mt-1">{dateError}</p>
+                )}
               </div>
             </div>
 
