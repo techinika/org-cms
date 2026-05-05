@@ -22,7 +22,7 @@ A modern company management dashboard for managing events, opportunities, and co
 - **Language**: TypeScript
 - **Styling**: Tailwind CSS
 - **Database**: Supabase (PostgreSQL)
-- **Image Storage**: Cloudinary
+- **Image Storage**: ImageKit (with assets table for tracking uploads)
 - **Icons**: Lucide React
 
 ## Project Structure
@@ -71,7 +71,8 @@ org-cms/
 ├── lib/
 │   ├── auth.ts                      # Server-side auth utilities
 │   ├── auth-client.ts              # Client-side auth utilities
-│   ├── cloudinary.ts              # Image upload utilities
+│   ├── cloudinary.ts              # (Deprecated - use imagekit.ts)
+│   ├── imagekit.ts                 # ImageKit upload utilities
 │   ├── supabase.ts                # Supabase client & queries
 │   └── supabase-server.ts        # Server-side Supabase client
 ├── types/
@@ -135,13 +136,22 @@ NEXT_PUBLIC_PROJECT_URL=your_supabase_project_url
 NEXT_PUBLIC_API_KEY=your_supabase_anon_key
 NEXT_PUBLIC_SERVICE_KEY=your_supabase_service_key
 
-# Cloudinary
-NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=your_cloud_name
-NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET=ml_default
+# ImageKit
+NEXT_PUBLIC_IMAGEKIT_PUBLIC_KEY=your_imagekit_public_key
+IMAGEKIT_PRIVATE_KEY=your_imagekit_private_key
+IMAGEKIT_URL_ENDPOINT=your_imagekit_url_endpoint
 
 # Auth
 NEXT_PUBLIC_AUTH_URL=https://your-auth-app-url
 NEXT_PUBLIC_BASE_URL=http://localhost:3001
+
+# SMTP (for sending emails)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=your-email@gmail.com
+SMTP_PASS=your-app-password
+SMTP_FROM=Your Name <your-email@gmail.com>
 ```
 
 ### Development
@@ -158,6 +168,7 @@ Open [http://localhost:3001](http://localhost:3001) in your browser.
 - id (uuid, primary key)
 - name (text, required)
 - logo_url (text)
+- image_ref (uuid, references assets.id)
 - description (text)
 - industry (text)
 - location (text)
@@ -172,6 +183,17 @@ Open [http://localhost:3001](http://localhost:3001) in your browser.
 - seo_description (text)
 - tags (text)
 - lang (text)
+- created_at, updated_at (timestamps)
+
+### assets
+- id (uuid, primary key)
+- url (text, required)
+- file_name (text)
+- file_type (text)
+- file_size (numeric)
+- width (numeric)
+- height (numeric)
+- imagekit_file_id (text)
 - created_at, updated_at (timestamps)
 
 ### user_company

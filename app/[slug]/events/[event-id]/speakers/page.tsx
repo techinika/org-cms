@@ -36,9 +36,14 @@ interface Speaker {
   id: string;
   name: string;
   title: string | null;
-  company: string | null;
+  company_id: string | null;
+  org_name: string | null;
   bio: string | null;
   photo_url: string | null;
+  company?: {
+    id: string;
+    name: string;
+  };
 }
 
 interface Props {
@@ -58,7 +63,7 @@ export default function EventSpeakersPage({ params }: Props) {
   const [selectedSpeaker, setSelectedSpeaker] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [showCreateNew, setShowCreateNew] = useState(false);
-  const [newSpeaker, setNewSpeaker] = useState({ name: "", title: "", company: "", bio: "", photo_url: "" });
+  const [newSpeaker, setNewSpeaker] = useState({ name: "", title: "", company_id: "", org_name: "", bio: "", photo_url: "" });
 
   useEffect(() => {
     checkAuth();
@@ -81,17 +86,17 @@ export default function EventSpeakersPage({ params }: Props) {
 
     const { data: eventSpeakers } = await supabase
       .from("event_speakers")
-      .select("*, speaker:speakers(*)")
+      .select("*, speaker:speakers(*, company:featured_startups(*))")
       .eq("event_id", eventId)
       .order("speaking_order", { ascending: true });
     setSpeakers(eventSpeakers || []);
 
     const { data: allSpeakers } = await supabase
       .from("speakers")
-      .select("*")
+      .select("*, company:featured_startups(*)")
       .order("name");
     setAvailableSpeakers(allSpeakers || []);
-    
+
     setIsLoading(false);
   };
 
@@ -123,7 +128,8 @@ export default function EventSpeakersPage({ params }: Props) {
     const { data: created, error } = await supabase.from("speakers").insert({
       name: newSpeaker.name,
       title: newSpeaker.title || null,
-      company: newSpeaker.company || null,
+      company_id: newSpeaker.company_id || null,
+      org_name: newSpeaker.org_name || null,
       bio: newSpeaker.bio || null,
       photo_url: newSpeaker.photo_url || null,
     }).select().single();
@@ -138,7 +144,7 @@ export default function EventSpeakersPage({ params }: Props) {
       });
       showToast("Speaker created and added", "success");
       setShowAddModal(false);
-      setNewSpeaker({ name: "", title: "", company: "", bio: "", photo_url: "" });
+      setNewSpeaker({ name: "", title: "", company_id: "", org_name: "", bio: "", photo_url: "" });
       setShowCreateNew(false);
       fetchData();
     }
@@ -272,14 +278,18 @@ export default function EventSpeakersPage({ params }: Props) {
                       <button
                         key={speaker.id}
                         onClick={() => setSelectedSpeaker(speaker.id)}
-                        className={`w-full p-3 rounded-xl text-left flex items-center gap-3 transition-colors ${
+                        className={`w-full p-3 rounded-xl text-left flex items-center gap-3 border ${
                           selectedSpeaker === speaker.id
-                            ? "bg-[#3182ce]/10 border-2 border-[#3182ce]"
-                            : "border border-gray-200 hover:border-[#3182ce]/50"
+                            ? "border-[#3182ce] bg-[#3182ce]/5"
+                            : "border-gray-200 hover:border-[#3182ce]/50"
                         }`}
                       >
-                        <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
-                          <Users className="w-5 h-5 text-gray-400" />
+                        <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center overflow-hidden">
+                          {speaker.photo_url ? (
+                            <img src={speaker.photo_url} className="w-10 h-10 object-cover" />
+                          ) : (
+                            <Users className="w-5 h-5 text-gray-400" />
+                          )}
                         </div>
                         <div>
                           <p className="font-medium">{speaker.name}</p>
@@ -310,12 +320,28 @@ export default function EventSpeakersPage({ params }: Props) {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Company</label>
+                  <label className="block text-sm font-medium mb-1">Company (from Featured Startups)</label>
+                  <select
+                    value={newSpeaker.company_id || ""}
+                    onChange={(e) => setNewSpeaker({ ...newSpeaker, company_id: e.target.value || "", org_name: "" })}
+                    className="w-full px-4 py-2.5 border rounded-xl bg-white"
+                  >
+                    <option value="">Select a company...</option>
+                    {availableSpeakers
+                      .filter((s) => s.company_id)
+                      .map((s) => (
+                        <option key={s.company_id!} value={s.company_id!}>{s.company?.name}</option>
+                      ))}
+                  </select>
+                </div>
+                <div className="text-center text-sm text-gray-500">OR</div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Organization Name (if not in list)</label>
                   <input
-                    value={newSpeaker.company}
-                    onChange={(e) => setNewSpeaker({ ...newSpeaker, company: e.target.value })}
+                    value={newSpeaker.org_name}
+                    onChange={(e) => setNewSpeaker({ ...newSpeaker, org_name: e.target.value, company_id: "" })}
                     className="w-full px-4 py-2.5 border rounded-xl"
-                    placeholder="Company name"
+                    placeholder="Organization name"
                   />
                 </div>
                 <div>

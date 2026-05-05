@@ -13,6 +13,10 @@ import {
   ClipboardList,
   BarChart3,
   Edit2,
+  CheckCircle2,
+  Send,
+  HelpCircle,
+  Ticket as TicketIcon,
 } from "lucide-react";
 import { Event } from "@/types/company";
 import { getEventById } from "@/lib/supabase";
@@ -74,13 +78,29 @@ export default function EventDetailPage({ params }: Props) {
     );
   }
 
+  const isPublished = event.publish_status === "published";
+
   const menuItems = [
+    {
+      title: "Review & Publish",
+      description: isPublished ? "Event is live - view summary" : "Review all sections and publish",
+      href: `/${slug}/events/${eventId}/review`,
+      icon: isPublished ? CheckCircle2 : Send,
+      color: isPublished ? "bg-green-50 text-green-600" : "bg-blue-50 text-blue-600",
+    },
     {
       title: "Edit Event",
       description: "Update event details, dates, location and description",
       href: `/${slug}/events/${eventId}/edit`,
       icon: Edit2,
       color: "bg-blue-50 text-blue-600",
+    },
+    {
+      title: "FAQs",
+      description: "Manage frequently asked questions",
+      href: `/${slug}/events/${eventId}/faqs`,
+      icon: HelpCircle,
+      color: "bg-teal-50 text-teal-600",
     },
     {
       title: "Speakers",
@@ -104,19 +124,26 @@ export default function EventDetailPage({ params }: Props) {
       color: "bg-orange-50 text-orange-600",
     },
     {
-      title: "Registrations",
-      description: "View and manage attendee registrations",
-      href: `/${slug}/events/${eventId}/registrations`,
-      icon: ClipboardList,
+      title: "Tickets",
+      description: "Manage event tickets and pricing",
+      href: `/${slug}/events/${eventId}/tickets`,
+      icon: TicketIcon,
       color: "bg-pink-50 text-pink-600",
     },
-    {
-      title: "Statistics",
-      description: "View event analytics and insights",
-      href: `/${slug}/events/${eventId}/stats`,
-      icon: BarChart3,
+    ...(isPublished ? [{
+      title: "RSVPs & Check-in",
+      description: "Manage registrations and check in guests",
+      href: `/${slug}/events/${eventId}/registrations`,
+      icon: ClipboardList,
       color: "bg-indigo-50 text-indigo-600",
-    },
+    }] : []),
+    ...(!isPublished ? [{
+      title: "Registrations (Preview)",
+      description: "View registrations after publishing",
+      href: `/${slug}/events/${eventId}/registrations`,
+      icon: ClipboardList,
+      color: "bg-gray-50 text-gray-400",
+    }] : []),
   ];
 
   return (

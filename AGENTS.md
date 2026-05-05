@@ -21,6 +21,34 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - Main company page shows three cards: Company Profile, Company Events, Company Opportunities
 - Each card links to separate pages
 
+## Events Management
+
+### Event Creation & Draft Workflow
+- Every event is created as a draft (`publish_status: "draft"`)
+- After creation, redirected to Review & Publish page (`/[slug]/events/[event-id]/review`)
+- Review page aggregates all sections: Basic Info, Partners & Sponsors, Speakers, Agenda, FAQs, Tickets
+- Publish button with validation (checks required fields)
+- After publishing, event can be accessed for RSVP management and guest check-in
+
+### Event Pages Structure (`/[slug]/events/[event-id]/`)
+- **Review & Publish** (`/review`) - Aggregates all event sections, publish button with validation
+- **Edit Event** (`/edit`) - Update event details with date/time pickers and validation (end cannot be before start)
+- **FAQs** (`/faqs`) - Manage FAQs in array format: `[{ question: string; answer: string }]`
+- **Speakers** (`/speakers`) - Manage event speakers with company selection from `featured_startups` or `org_name` for orgs not in system
+- **Agenda** (`/agenda`) - Manage event schedule and sessions
+- **Partners & Sponsors** (`/partners`) - Manage partners and sponsors
+- **Tickets** (`/tickets`) - Manage event tickets with price, quantity, sales dates, active toggle
+- **RSVPs & Check-in** (`/registrations`) - View registrations, check-in guests, QR code scanning (mobile-optimized)
+  - Generate QR codes for each registration
+  - Scan QR codes using mobile camera for quick check-in
+  - Stats dashboard: Total, Confirmed, Checked In, Pending, Cancelled
+
+### Event Data Structure
+- `events.faqs` stores FAQs as array: `[{ question: string; answer: string }]`
+- `speakers` table has `company_id` (references `featured_startups`) and `org_name` (for orgs not in system)
+- `event_registrations` has `checked_in` boolean and `checked_in_at` timestamp
+- Tickets managed via `event_tickets` table
+
 ## Separate Pages
 - `/[slug]/profile` - Edit company profile form, delete company
 - `/[slug]/events` - List company events, create new event
@@ -152,3 +180,14 @@ components/
 ## Environment Variables
 Add SMTP config for email:
 - `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`
+
+## Image & Video Upload (ImageKit)
+- All image uploads now use ImageKit instead of Cloudinary
+- Files are uploaded via `/api/upload-image` route
+- Each upload creates a record in `assets` table
+- `featured_startups.logo_url` stores the ImageKit URL
+- `featured_startups.image_ref` references `assets.id`
+- Environment variables:
+  - `IMAGEKIT_PUBLIC_KEY` - ImageKit public key (client-side)
+  - `IMAGEKIT_PRIVATE_KEY` - ImageKit private key (server-side)
+  - `IMAGEKIT_URL_ENDPOINT` - ImageKit URL endpoint

@@ -6,6 +6,7 @@ export interface FeaturedStartup {
   lang: string;
   name: string;
   logo_url: string | null;
+  image_ref: string | null;
   description: string;
   learn_more_links: Record<string, unknown> | null;
   email: string | null;
@@ -75,12 +76,17 @@ export interface Event {
   end_date: string | null;
   organizer_id: string | null;
   contact_person_id: string | null;
-  faqs: Record<string, unknown> | null;
+  faqs: FaqItem[] | null;
   tags: string | null;
   is_featured: boolean;
   views: number;
   external_link: string | null;
   external_link_clicks: string;
+}
+
+export interface FaqItem {
+  question: string;
+  answer: string;
 }
 
 export type OpportunityType = "Job" | "Tender" | "Grant" | "Internship" | "Other";
@@ -156,8 +162,32 @@ export interface EventRegistration {
   user_id: string;
   ticket_id: string | null;
   status: string;
+  checked_in: boolean | null;
+  checked_in_at: string | null;
   answers: Record<string, unknown>;
   created_at: string;
+}
+
+export interface Speaker {
+  id: string;
+  name: string;
+  title: string | null;
+  bio: string | null;
+  company_id: string | null;
+  org_name: string | null;
+  profile_picture: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EventSpeaker {
+  id: string;
+  event_id: string;
+  speaker_id: string;
+  role: string | null;
+  speaking_order: number | null;
+  note: string | null;
+  speaker?: Speaker;
 }
 
 export interface EventTicket {
@@ -216,6 +246,19 @@ export const WORK_MODES = ["Remote", "On-Site", "Hybrid", "In-person"] as const;
 export const EMPLOYMENT_TYPES = ["Full-Time", "Part-Time", "Contract", "Temporary", "Volunteering", "Task", "Internship"] as const;
 export const APPLICATION_PROGRESS = ["pending", "in_review", "interview_pending", "technical_exam_pending", "contract_signing_pending", "not_proceeding", "hired", "quit", "rejected"] as const;
 export const EVENT_FORMATS = ["Webinar", "Conference", "Workshop", "Networking", "Launch", "Hackathon"] as const;
+
+export interface Asset {
+  id: string;
+  url: string;
+  file_name: string;
+  file_type: string;
+  file_size: number;
+  width: number | null;
+  height: number | null;
+  imagekit_file_id: string;
+  created_at: string;
+  updated_at?: string;
+}
 
 export const INDUSTRIES = [
   "Agriculture",
