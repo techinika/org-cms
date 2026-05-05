@@ -17,6 +17,7 @@ import {
   Send,
   HelpCircle,
   Ticket as TicketIcon,
+  ExternalLink,
 } from "lucide-react";
 import { Event } from "@/types/company";
 import { getEventById } from "@/lib/supabase";
@@ -79,8 +80,19 @@ export default function EventDetailPage({ params }: Props) {
   }
 
   const isPublished = event.publish_status === "published";
+  const isExternal = event.registration_type === "external";
 
-  const menuItems = [
+  // Define menu item type to include optional target
+  interface MenuItem {
+    title: string;
+    description: string;
+    href: string;
+    icon: any;
+    color: string;
+    target?: string;
+  }
+
+  const menuItems: MenuItem[] = [
     {
       title: "Review & Publish",
       description: isPublished ? "Event is live - view summary" : "Review all sections and publish",
@@ -130,16 +142,24 @@ export default function EventDetailPage({ params }: Props) {
       icon: TicketIcon,
       color: "bg-pink-50 text-pink-600",
     },
-    ...(isPublished ? [{
+    ...(isPublished && !isExternal ? [{
       title: "RSVPs & Check-in",
       description: "Manage registrations and check in guests",
       href: `/${slug}/events/${eventId}/registrations`,
       icon: ClipboardList,
       color: "bg-indigo-50 text-indigo-600",
     }] : []),
+    ...(isPublished && isExternal ? [{
+      title: "External Registration",
+      description: `Registration via external link${event.external_link ? ': ' + event.external_link : ''}`,
+      href: event.external_link || "#",
+      icon: ExternalLink,
+      color: "bg-blue-50 text-blue-600",
+      target: "_blank",
+    }] : []),
     ...(!isPublished ? [{
       title: "Registrations (Preview)",
-      description: "View registrations after publishing",
+      description: isExternal ? "External registration - view after publishing" : "Manage registrations after publishing",
       href: `/${slug}/events/${eventId}/registrations`,
       icon: ClipboardList,
       color: "bg-gray-50 text-gray-400",
@@ -163,32 +183,55 @@ export default function EventDetailPage({ params }: Props) {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-gray-900">{event.title}</h1>
-              <p className="text-gray-500">{event.format} • {event.location || "No location"}</p>
+              <div className="flex items-center gap-2 text-gray-500">
+                <span>{event.format} • {event.location || "No location"}</span>
+                <span className={`text-xs px-2 py-0.5 rounded-full flex items-center gap-1 ${
+                  event.registration_type === "external"
+                    ? "bg-blue-100 text-blue-700"
+                    : "bg-purple-100 text-purple-700"
+                }`}>
+                  {event.registration_type === "external" ? (
+                    <ExternalLink className="w-3 h-3" />
+                  ) : (
+                    <CheckCircle2 className="w-3 h-3" />
+                  )}
+                  {event.registration_type === "external" ? "External Registration" : "Platform Registration"}
+                </span>
+              </div>
             </div>
           </div>
         </div>
 
         <div className="grid gap-4">
-          {menuItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="bg-white rounded-2xl border border-gray-200 p-6 hover:border-[#3182ce]/30 hover:shadow-md transition-all group"
-            >
-              <div className="flex items-start gap-4">
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${item.color}`}>
-                  <item.icon className="w-6 h-6" />
+          {menuItems.map((item) => {
+            const linkProps: any = {
+              key: item.href,
+              href: item.href,
+              className: "bg-white rounded-2xl border border-gray-200 p-6 hover:border-[#3182ce]/30 hover:shadow-md transition-all group",
+            };
+            if (item.target) {
+              linkProps.target = item.target;
+              linkProps.rel = "noopener noreferrer";
+            }
+            const LinkComponent = item.target ? 'a' : Link;
+            
+            return (
+              <LinkComponent {...linkProps}>
+                <div className="flex items-start gap-4">
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${item.color}`}>
+                    <item.icon className="w-6 h-6" />
+                  </div>
+                  <div className="flex-1">
+                    <h2 className="text-lg font-semibold text-gray-900 group-hover:text-[#3182ce] transition-colors">
+                      {item.title}
+                    </h2>
+                    <p className="text-sm text-gray-500 mt-1">{item.description}</p>
+                  </div>
+                  <ArrowLeft className="w-5 h-5 text-gray-300 group-hover:text-[#3182ce] rotate-180 transition-colors" />
                 </div>
-                <div className="flex-1">
-                  <h2 className="text-lg font-semibold text-gray-900 group-hover:text-[#3182ce] transition-colors">
-                    {item.title}
-                  </h2>
-                  <p className="text-sm text-gray-500 mt-1">{item.description}</p>
-                </div>
-                <ArrowLeft className="w-5 h-5 text-gray-300 group-hover:text-[#3182ce] rotate-180 transition-colors" />
-              </div>
-            </Link>
-          ))}
+              </LinkComponent>
+            );
+          })}
         </div>
       </div>
     </div>

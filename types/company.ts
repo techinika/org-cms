@@ -59,6 +59,8 @@ export interface AuthUser {
 export type EventFormat = "Webinar" | "Conference" | "Workshop" | "Networking" | "Launch" | "Hackathon";
 export type EventStatus = "Upcoming" | "Past" | "Featured" | "Happening";
 
+export type EventRegistrationType = "platform" | "external";
+
 export interface Event {
   id: string;
   created_at: string;
@@ -80,8 +82,15 @@ export interface Event {
   tags: string | null;
   is_featured: boolean;
   views: number;
+  registration_type: EventRegistrationType;
   external_link: string | null;
   external_link_clicks: string;
+  // Registration logic:
+  // - If registration_type is "platform" -> platform handles registration (same page)
+  // - If registration_type is "external" -> external platform (opens in new tab, uses external_link)
+  // - If event has tickets with price > 0 -> NOT free
+  // - If event has tickets but all price = 0 -> Free (ignore is_free)
+  // - If no tickets and no is_free field -> assumed free
 }
 
 export interface FaqItem {
@@ -246,6 +255,12 @@ export const WORK_MODES = ["Remote", "On-Site", "Hybrid", "In-person"] as const;
 export const EMPLOYMENT_TYPES = ["Full-Time", "Part-Time", "Contract", "Temporary", "Volunteering", "Task", "Internship"] as const;
 export const APPLICATION_PROGRESS = ["pending", "in_review", "interview_pending", "technical_exam_pending", "contract_signing_pending", "not_proceeding", "hired", "quit", "rejected"] as const;
 export const EVENT_FORMATS = ["Webinar", "Conference", "Workshop", "Networking", "Launch", "Hackathon"] as const;
+
+// Helper function to determine if event is free based on tickets
+export function isEventFree(tickets: EventTicket[] | null): boolean {
+  if (!tickets || tickets.length === 0) return true; // No tickets = free event
+  return tickets.every(t => t.price === 0); // All tickets free = free event
+}
 
 export interface Asset {
   id: string;

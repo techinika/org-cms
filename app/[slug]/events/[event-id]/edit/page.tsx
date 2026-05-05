@@ -44,6 +44,7 @@ export default function EditEventPage({ params }: Props) {
     full_description: "",
     tags: "",
     external_link: "",
+    registration_type: "platform",
   });
 
   const [dateError, setDateError] = useState<string | null>(null);
@@ -85,6 +86,7 @@ export default function EditEventPage({ params }: Props) {
       full_description: data.full_description || "",
       tags: data.tags || "",
       external_link: data.external_link || "",
+      registration_type: data.external_link === "register" ? "platform" : "external",
     });
     setIsLoading(false);
   };
@@ -122,7 +124,7 @@ export default function EditEventPage({ params }: Props) {
       seo_description: formData.seo_description || null,
       full_description: formData.full_description || null,
       tags: formData.tags || null,
-      external_link: formData.external_link || null,
+      external_link: formData.registration_type === "external" ? formData.external_link || null : "register",
     });
     if (error) {
       setError("Failed to save");
@@ -274,16 +276,32 @@ export default function EditEventPage({ params }: Props) {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                <Globe className="w-4 h-4 inline mr-1" /> External Link
+                <Globe className="w-4 h-4 inline mr-1" /> Registration Type
               </label>
-              <input
-                type="url"
-                value={formData.external_link}
-                onChange={(e) => setFormData({ ...formData, external_link: e.target.value })}
-                placeholder="https://..."
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none"
-              />
+              <select
+                value={formData.registration_type}
+                onChange={(e) => setFormData({ ...formData, registration_type: e.target.value as "platform" | "external" })}
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none bg-white"
+              >
+                <option value="platform">Platform Registration (register on-site)</option>
+                <option value="external">External Link (opens in new tab)</option>
+              </select>
             </div>
+
+            {formData.registration_type === "external" && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  <Globe className="w-4 h-4 inline mr-1" /> External Link
+                </label>
+                <input
+                  type="url"
+                  value={formData.external_link}
+                  onChange={(e) => setFormData({ ...formData, external_link: e.target.value })}
+                  placeholder="https://..."
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none"
+                />
+              </div>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Full Description</label>

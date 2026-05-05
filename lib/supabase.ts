@@ -250,6 +250,30 @@ export async function getAssetById(id: string): Promise<{ data: Asset | null; er
   return { data, error };
 }
 
+export async function getEventMetaDetails(eventId: string): Promise<{ data: EventMetaDetails | null; error: Error | null }> {
+  const { data, error } = await supabase
+    .from("event_meta_details")
+    .select("*")
+    .eq("event_id", eventId)
+    .single();
+  return { data, error };
+}
+
+export async function upsertEventMetaDetails(meta: {
+  event_id: string;
+  is_free?: boolean;
+  requires_approval?: boolean;
+  capacity?: number | null;
+  registration_open?: boolean;
+}): Promise<{ data: EventMetaDetails | null; error: Error | null }> {
+  const { data, error } = await supabase
+    .from("event_meta_details")
+    .upsert({ ...meta, updated_at: new Date().toISOString() })
+    .select()
+    .single();
+  return { data, error };
+}
+
 export async function updateApplicationFeedback(applicationId: string, status: string, message?: string, reviewerId?: string): Promise<{ data: ApplicationFeedback | null; error: Error | null }> {
   const { data: existing } = await supabase.from("applications_feedback").select("id").eq("application_id", applicationId).single();
   

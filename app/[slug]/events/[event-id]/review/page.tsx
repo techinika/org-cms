@@ -14,6 +14,7 @@ import {
   Send,
   AlertCircle,
   CheckCircle2,
+  ExternalLink,
 } from "lucide-react";
 import { Event, EventSchedule, EventTicket } from "@/types/company";
 import { getEventById, getEventSchedules, getEventTickets, updateEvent } from "@/lib/supabase";
@@ -238,6 +239,32 @@ export default function EventReviewPage({ params }: Props) {
                   {event.end_date ? new Date(event.end_date).toLocaleDateString() : "Not set"}
                 </dd>
               </div>
+              <div>
+                <dt className="text-gray-500">Registration Type</dt>
+                <dd className="font-medium text-gray-900">
+                  {event.registration_type === "external" ? (
+                    <span className="inline-flex items-center gap-1 text-blue-600">
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      External Link
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-green-600">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      Platform Registration
+                    </span>
+                  )}
+                </dd>
+              </div>
+              {event.registration_type === "external" && (
+                <div className="col-span-2">
+                  <dt className="text-gray-500">External Link</dt>
+                  <dd className="font-medium text-gray-900">
+                    <a href={event.external_link || "#"} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                      {event.external_link || "Not set"}
+                    </a>
+                  </dd>
+                </div>
+              )}
             </dl>
           </SectionCard>
 
