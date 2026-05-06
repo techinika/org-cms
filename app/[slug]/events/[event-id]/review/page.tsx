@@ -59,6 +59,7 @@ export default function EventReviewPage({ params }: Props) {
   const [user, setUser] = useState<{ name: string; email: string; avatar?: string } | null>(null);
   const [publishing, setPublishing] = useState(false);
   const [showPublishModal, setShowPublishModal] = useState(false);
+  const [showUnpublishModal, setShowUnpublishModal] = useState(false);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
   useEffect(() => {
@@ -129,6 +130,20 @@ export default function EventReviewPage({ params }: Props) {
     }
   };
 
+  const handleUnpublish = async () => {
+    setPublishing(true);
+    const { error } = await updateEvent(eventId, { publish_status: "draft" });
+    setPublishing(false);
+
+    if (error) {
+      showToast("Failed to unpublish event", "error");
+    } else {
+      showToast("Event moved back to draft", "success");
+      setShowUnpublishModal(false);
+      fetchAllData();
+    }
+  };
+
   const groupedSchedules = schedules.reduce((acc, s) => {
     const day = s.day_index || 1;
     if (!acc[day]) acc[day] = [];
@@ -179,10 +194,18 @@ export default function EventReviewPage({ params }: Props) {
             </div>
             <div className="flex items-center gap-3">
               {isPublished ? (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-100 text-green-700 rounded-full text-sm font-medium">
-                  <CheckCircle2 className="w-4 h-4" />
-                  Published
-                </span>
+                <>
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-100 text-green-700 rounded-full text-sm font-medium">
+                    <CheckCircle2 className="w-4 h-4" />
+                    Published
+                  </span>
+                  <button
+                    onClick={() => setShowUnpublishModal(true)}
+                    className="px-4 py-1.5 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50 transition-colors"
+                  >
+                    Unpublish
+                  </button>
+                </>
               ) : (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-yellow-100 text-yellow-700 rounded-full text-sm font-medium">
                   <AlertCircle className="w-4 h-4" />
@@ -409,6 +432,17 @@ export default function EventReviewPage({ params }: Props) {
         variant="info"
         onConfirm={handlePublish}
         onCancel={() => setShowPublishModal(false)}
+      />
+
+      <ConfirmationModal
+        isOpen={showUnpublishModal}
+        title="Unpublish Event"
+        message={`Are you sure you want to unpublish "${event.title}"? The event will be moved back to draft and will no longer be visible to the public.`}
+        confirmLabel={publishing ? "Unpublishing..." : "Unpublish"}
+        cancelLabel="Cancel"
+        variant="warning"
+        onConfirm={handleUnpublish}
+        onCancel={() => setShowUnpublishModal(false)}
       />
     </div>
   );
