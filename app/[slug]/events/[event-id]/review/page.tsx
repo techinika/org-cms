@@ -16,7 +16,7 @@ import {
   CheckCircle2,
   ExternalLink,
 } from "lucide-react";
-import { Event, EventSchedule, EventTicket } from "@/types/company";
+import { Event, EventSchedule, EventTicket, FeaturedStartup } from "@/types/company";
 import { getEventById, getEventSchedules, getEventTickets, updateEvent } from "@/lib/supabase";
 import { checkAuthClient, getAuthRedirectUrl } from "@/lib/auth-client";
 import Navbar from "@/components/parts/Navbar";
@@ -24,6 +24,7 @@ import Breadcrumb from "@/components/parts/Breadcrumb";
 import { useToast } from "@/components/ui/Toast";
 import { supabase } from "@/lib/supabase";
 import ConfirmationModal from "@/components/ui/ConfirmationModal";
+import CompanyLogo from "@/components/ui/CompanyLogo";
 
 interface EventSpeaker {
   id: string;
@@ -37,10 +38,7 @@ interface EventSpeaker {
 interface EventCompany {
   id: number;
   relationship: string;
-  company?: {
-    name: string;
-    logo_url: string | null;
-  };
+  company?: FeaturedStartup;
 }
 
 interface Props {
@@ -56,7 +54,6 @@ export default function EventReviewPage({ params }: Props) {
   const [schedules, setSchedules] = useState<EventSchedule[]>([]);
   const [tickets, setTickets] = useState<EventTicket[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [user, setUser] = useState<{ name: string; email: string; avatar?: string } | null>(null);
   const [publishing, setPublishing] = useState(false);
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [showUnpublishModal, setShowUnpublishModal] = useState(false);
@@ -72,7 +69,6 @@ export default function EventReviewPage({ params }: Props) {
       window.location.href = getAuthRedirectUrl();
       return;
     }
-    setUser({ name: authResult.user.name, email: authResult.user.email, avatar: authResult.user.avatar });
     fetchAllData();
   };
 
@@ -91,6 +87,17 @@ export default function EventReviewPage({ params }: Props) {
       .from("event_companies")
       .select("*, company:featured_startups(*)")
       .eq("event_id", eventId);
+    
+    if (partnersData) {
+      for (const p of partnersData) {
+        if (p.company?.image_ref) {
+          const { data: asset } = await supabase.from("assets").select("url").eq("id", p.company.image_ref).single();
+          if (asset) {
+            p.company.logo_url = asset.url;
+          }
+        }
+      }
+    }
     setPartners(partnersData || []);
 
     const { data: schedulesData } = await getEventSchedules(eventId);
@@ -172,7 +179,7 @@ export default function EventReviewPage({ params }: Props) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar user={user || undefined} />
+      <Navbar />
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Breadcrumb items={[
@@ -298,11 +305,7 @@ export default function EventReviewPage({ params }: Props) {
               <div className="flex flex-wrap gap-3">
                 {partners.map((p) => (
                   <div key={p.id} className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg">
-                    {p.company?.logo_url ? (
-                      <img src={p.company.logo_url} className="w-6 h-6 rounded object-cover" />
-                    ) : (
-                      <Building2 className="w-4 h-4 text-gray-400" />
-                    )}
+                    {p.company && <CompanyLogo company={p.company} size="sm" />}
                     <span className="text-sm font-medium">{p.company?.name}</span>
                     <span className="text-xs px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full capitalize">{p.relationship}</span>
                   </div>

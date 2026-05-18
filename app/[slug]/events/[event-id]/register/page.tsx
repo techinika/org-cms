@@ -1,3 +1,5 @@
+"use client";
+
 import { useState, useEffect, use } from "react";
 import Link from "next/link";
 import {
@@ -25,7 +27,7 @@ export default function EventRegisterPage({ params }: Props) {
   const [meta, setMeta] = useState<EventMetaDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [user, setUser] = useState<{ id?: string; name: string; email: string; avatar?: string } | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const [registering, setRegistering] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
@@ -48,7 +50,7 @@ export default function EventRegisterPage({ params }: Props) {
       window.location.href = getAuthRedirectUrl();
       return;
     }
-    setUser({ name: authResult.user.name, email: authResult.user.email, avatar: authResult.user.avatar });
+    setUserId(authResult.user.id);
     fetchData();
   };
 
@@ -88,7 +90,7 @@ export default function EventRegisterPage({ params }: Props) {
     try {
       const { error } = await supabase.from("event_registrations").insert({
         event_id: eventId,
-        user_id: user?.id || null,
+        user_id: userId || null,
         ticket_id: formData.ticket_id || null,
         status: meta?.requires_approval ? "pending_approval" : "confirmed",
         answers: {
@@ -128,7 +130,7 @@ export default function EventRegisterPage({ params }: Props) {
   if (submitted) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <Navbar user={user || undefined} />
+        <Navbar />
         <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center">
             <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
@@ -160,7 +162,7 @@ export default function EventRegisterPage({ params }: Props) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar user={user || undefined} />
+      <Navbar />
 
       <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Breadcrumb items={[

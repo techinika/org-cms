@@ -8,14 +8,15 @@ import {
   Calendar,
   Briefcase,
   Loader2,
-  ArrowLeft,
   Eye,
+  Users,
 } from "lucide-react";
 import { FeaturedStartup } from "@/types/company";
 import { getCompanyBySlug } from "@/lib/supabase";
 import { checkAuthClient, getAuthRedirectUrl } from "@/lib/auth-client";
 import Navbar from "@/components/parts/Navbar";
 import Breadcrumb from "@/components/parts/Breadcrumb";
+import CompanyLogo from "@/components/ui/CompanyLogo";
 
 export default function CompanyPage({
   params,
@@ -25,11 +26,6 @@ export default function CompanyPage({
   const { slug } = use(params);
   const [company, setCompany] = useState<FeaturedStartup | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [user, setUser] = useState<{
-    name: string;
-    email: string;
-    avatar?: string;
-  } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -42,11 +38,6 @@ export default function CompanyPage({
       window.location.href = getAuthRedirectUrl();
       return;
     }
-    setUser({
-      name: authResult.user.name,
-      email: authResult.user.email,
-      avatar: authResult.user.avatar,
-    });
     fetchCompany();
   };
 
@@ -83,7 +74,7 @@ export default function CompanyPage({
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar user={user || undefined} />
+      <Navbar />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <Breadcrumb items={[
@@ -96,15 +87,7 @@ export default function CompanyPage({
           <div className="px-4 sm:px-6 pb-6">
             <div className="flex flex-col sm:flex-row sm:items-start gap-4 -mt-8 sm:-mt-10 mb-4">
               <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-white border-4 border-white shadow-lg flex items-center justify-center overflow-hidden">
-                {company.logo_url ? (
-                  <img
-                    src={company.logo_url}
-                    alt={company.name}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <Building2 className="w-6 h-6 sm:w-8 sm:h-8 text-gray-300" />
-                )}
+                <CompanyLogo company={company} size="lg" />
               </div>
 
               <div className="flex-1 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -155,6 +138,21 @@ export default function CompanyPage({
               <p className="text-sm text-gray-500">
                 Manage your company details
               </p>
+            </div>
+          </Link>
+
+          <Link
+            href={`/${slug}/users`}
+            className="bg-white rounded-2xl border border-gray-200 p-6 hover:border-[#3182ce]/30 hover:shadow-lg transition-all flex items-center gap-4"
+          >
+            <div className="w-12 h-12 rounded-xl bg-[#3182ce]/10 flex items-center justify-center">
+              <Users className="w-6 h-6 text-[#3182ce]" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">
+                Company Users
+              </h2>
+              <p className="text-sm text-gray-500">Manage team members</p>
             </div>
           </Link>
 

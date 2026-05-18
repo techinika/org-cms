@@ -27,7 +27,6 @@ export default function CompanyOpportunitiesPage({ params }: { params: Promise<{
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [user, setUser] = useState<{ name: string; email: string; avatar?: string } | null>(null);
   const [showMenu, setShowMenu] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<{ open: boolean; opp: Opportunity | null }>({ open: false, opp: null });
@@ -42,7 +41,6 @@ export default function CompanyOpportunitiesPage({ params }: { params: Promise<{
       window.location.href = getAuthRedirectUrl();
       return;
     }
-    setUser({ name: authResult.user.name, email: authResult.user.email, avatar: authResult.user.avatar });
     fetchCompany();
   };
 
@@ -108,7 +106,7 @@ export default function CompanyOpportunitiesPage({ params }: { params: Promise<{
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar user={user || undefined} />
+      <Navbar />
       
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Breadcrumb items={[

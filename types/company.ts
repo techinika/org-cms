@@ -27,7 +27,7 @@ export interface FeaturedStartup {
   is_published?: boolean | null;
 }
 
-export type UserCompanyRole = "creator" | "manager" | "employee";
+export type UserCompanyRole = "creator" | "manager" | "events_manager" | "opportunities_manager" | "employee";
 export type UserCompanyStatus = string;
 
 export interface UserCompany {
@@ -43,8 +43,7 @@ export interface UserCompany {
   author?: {
     id: string;
     name: string;
-    email: string;
-    avatar_url?: string;
+    image_url?: string;
   } | null;
 }
 
@@ -310,3 +309,13 @@ export const INDUSTRIES = [
   "Transportation",
   "Other",
 ];
+
+export interface Industry {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  icon: string | null;
+  created_at: string;
+  updated_at: string;
+}

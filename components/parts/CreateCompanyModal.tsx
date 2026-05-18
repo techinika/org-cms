@@ -12,12 +12,15 @@ import {
 import { FeaturedStartup } from "@/types/company";
 import { supabase, searchCompanies } from "@/lib/supabase";
 import { uploadToImageKit } from "@/lib/imagekit";
+import CompanyLogo from "../ui/CompanyLogo";
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   onCreated: (company: FeaturedStartup) => void;
   userId?: string;
+  userCompanyIds?: string[];
+  userPendingCompanyIds?: string[];
 }
 
 export default function CreateCompanyModal({
@@ -25,6 +28,8 @@ export default function CreateCompanyModal({
   onClose,
   onCreated,
   userId,
+  userCompanyIds = [],
+  userPendingCompanyIds = [],
 }: Props) {
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -130,18 +135,57 @@ export default function CreateCompanyModal({
 
       if (claimError) throw claimError;
 
-      await supabase
-        .from("featured_startups")
-        .update({ claimed: true })
-        .eq("id", selectedCompany.id);
+      if (!selectedCompany.claimed) {
+        await supabase
+          .from("featured_startups")
+          .update({ claimed: true })
+          .eq("id", selectedCompany.id);
+      }
 
       onCreated(selectedCompany);
       onClose();
     } catch (error) {
-      console.error("Failed to claim company:", error);
+      console.error("Failed to request to join company:", error);
       setErrors((prev) => ({
         ...prev,
-        submit: "Failed to claim company. Please try again.",
+        submit: "Failed to request to join. Please try again.",
+      }));
+    } finally {
+      setClaiming(false);
+    }
+  };
+
+  const handleCancelRequest = async () => {
+    if (!selectedCompany || !userId) return;
+
+    setClaiming(true);
+    try {
+      const { data: requestData, error: findError } = await supabase
+        .from("user_company")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("company_id", selectedCompany.id)
+        .eq("status", "confirmation_pending")
+        .single();
+
+      if (findError || !requestData) {
+        throw new Error("Request not found");
+      }
+
+      const { error: cancelError } = await supabase
+        .from("user_company")
+        .delete()
+        .eq("id", requestData.id);
+
+      if (cancelError) throw cancelError;
+
+      onCreated(selectedCompany);
+      onClose();
+    } catch (error) {
+      console.error("Failed to cancel request:", error);
+      setErrors((prev) => ({
+        ...prev,
+        submit: "Failed to cancel request. Please try again.",
       }));
     } finally {
       setClaiming(false);
@@ -152,9 +196,6 @@ export default function CreateCompanyModal({
     const newErrors: Record<string, string> = {};
     if (!formData.name.trim()) {
       newErrors.name = "Company name is required";
-    }
-    if (!formData.description.trim()) {
-      newErrors.description = "Description is required";
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -181,26 +222,30 @@ const slugify = (text: string) =>
         .from("featured_startups")
         .insert({
           name: formData.name,
-          description: formData.description,
+          description: formData.description || "",
           slug: tempSlug,
-          logo_url: formData.logo_url || "https://ik.imagekit.io/default/company_placeholder.png",
+          logo_url: formData.logo_url || null,
           image_ref: formData.image_ref || null,
-          lang: "en",
+          lang: "english",
           is_featured: true,
-          claimed: false,
+          status: "published",
+          claimed: true,
+          roles: ["Hiring", "Partner"],
         })
         .select()
         .single();
 
       if (error) throw error;
 
-      await supabase.from("user_company").insert({
+      const { error: userCompanyError } = await supabase.from("user_company").insert({
         user_id: userId,
         company_id: data.id,
         role: "creator",
-        status: "confirmation_pending",
+        status: "accepted",
         added_by: userId,
       });
+
+      if (userCompanyError) throw userCompanyError;
 
       onCreated(data);
       onClose();
@@ -254,6 +299,9 @@ const slugify = (text: string) =>
                 onChange={(e) => {
                   setSearchQuery(e.target.value);
                   setSelectedCompany(null);
+                  if (searchResults.length === 0) {
+                    setFormData((prev) => ({ ...prev, name: e.target.value }));
+                  }
                   if (errors.name) setErrors({ ...errors, name: "" });
                 }}
               />
@@ -276,16 +324,8 @@ const slugify = (text: string) =>
                     }}
                     className="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 border-b border-gray-100 last:border-0"
                   >
-                    <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center overflow-hidden">
-                      {company.logo_url ? (
-                        <img
-                          src={company.logo_url}
-                          alt={company.name}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <Building2 className="w-5 h-5 text-gray-400" />
-                      )}
+                    <div className="w-10 h-10 rounded-lg flex items-center justify-center overflow-hidden">
+                      <CompanyLogo company={company} size="sm" />
                     </div>
                     <div className="text-left">
                       <p className="text-sm font-medium text-gray-900">
@@ -297,9 +337,19 @@ const slugify = (text: string) =>
                         </p>
                       )}
                     </div>
-                    {company.claimed && (
-                      <span className="ml-auto text-xs text-yellow-600 bg-yellow-50 px-2 py-1 rounded-full">
+                    {company.claimed && !userPendingCompanyIds.includes(company.id) && !userCompanyIds.includes(company.id) && (
+                      <span className="ml-auto text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
                         Claimed
+                      </span>
+                    )}
+                    {userPendingCompanyIds.includes(company.id) && (
+                      <span className="ml-auto text-xs text-orange-600 bg-orange-50 px-2 py-1 rounded-full">
+                        Pending Request
+                      </span>
+                    )}
+                    {userCompanyIds.includes(company.id) && (
+                      <span className="ml-auto text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full">
+                        Member
                       </span>
                     )}
                   </button>
@@ -311,23 +361,15 @@ const slugify = (text: string) =>
           {selectedCompany && (
             <div className="p-4 bg-green-50 border border-green-200 rounded-xl">
               <div className="flex items-center gap-3 mb-3">
-                <div className="w-12 h-12 rounded-xl bg-white border border-gray-200 flex items-center justify-center overflow-hidden">
-                  {selectedCompany.logo_url ? (
-                    <img
-                      src={selectedCompany.logo_url}
-                      alt={selectedCompany.name}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <Building2 className="w-6 h-6 text-gray-400" />
-                  )}
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center overflow-hidden">
+                  <CompanyLogo company={selectedCompany} size="md" />
                 </div>
                 <div>
                   <p className="font-semibold text-gray-900">
                     {selectedCompany.name}
                   </p>
                   <p className="text-xs text-gray-500">
-                    {selectedCompany.claimed ? "Already claimed" : "Available to claim"}
+                    {userCompanyIds.includes(selectedCompany.id) ? "You are a member" : selectedCompany.claimed ? "Claimed" : "Available"}
                   </p>
                 </div>
               </div>
@@ -336,25 +378,57 @@ const slugify = (text: string) =>
                   {selectedCompany.description}
                 </p>
               )}
-              <button
-                onClick={handleClaimCompany}
-                disabled={claiming || !!selectedCompany.claimed}
-                className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {claiming ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : !!selectedCompany.claimed ? (
-                  <>
-                    <CheckCircle className="w-4 h-4" />
-                    Already Claimed
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle className="w-4 h-4" />
-                    Claim This Company
-                  </>
-                )}
-              </button>
+              {userCompanyIds.includes(selectedCompany.id) ? (
+                <div className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 bg-gray-200 text-gray-600 font-medium rounded-lg">
+                  <CheckCircle className="w-4 h-4" />
+                  Already Part of Company
+                </div>
+              ) : userPendingCompanyIds.includes(selectedCompany.id) ? (
+                <button
+                  onClick={handleCancelRequest}
+                  disabled={claiming}
+                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {claiming ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <>
+                      <CheckCircle className="w-4 h-4" />
+                      Cancel Request
+                    </>
+                  )}
+                </button>
+              ) : selectedCompany.claimed ? (
+                <button
+                  onClick={handleClaimCompany}
+                  disabled={claiming}
+                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {claiming ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <>
+                      <CheckCircle className="w-4 h-4" />
+                      Request to Join
+                    </>
+                  )}
+                </button>
+              ) : (
+                <button
+                  onClick={handleClaimCompany}
+                  disabled={claiming}
+                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {claiming ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <>
+                      <CheckCircle className="w-4 h-4" />
+                      Claim This Company
+                    </>
+                  )}
+                </button>
+              )}
             </div>
           )}
 
@@ -367,13 +441,13 @@ const slugify = (text: string) =>
               <div className="space-y-4 px-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Company Description <span className="text-red-500">*</span>
+                    Description
                   </label>
                   <textarea
                     className={`w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none transition-all resize-none ${
                       errors.description ? "border-red-500" : "border-gray-200"
                     }`}
-                    placeholder="Brief description of your company..."
+                    placeholder="Brief description of your company (optional)..."
                     rows={3}
                     value={formData.description}
                     onChange={(e) => {

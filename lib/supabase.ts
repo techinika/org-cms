@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { FeaturedStartup, UserCompany, Event, Opportunity, Application, EventRegistration, EventTicket, EventSchedule, EventCompany, EventMetaDetails, ApplicationFeedback, Asset } from "@/types/company";
+import { FeaturedStartup, UserCompany, Event, Opportunity, Application, EventRegistration, EventTicket, EventSchedule, EventCompany, EventMetaDetails, ApplicationFeedback, Asset, Industry } from "@/types/company";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_PROJECT_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_API_KEY!;
@@ -68,10 +68,11 @@ export async function getCompanyBySlug(slug: string): Promise<{ data: FeaturedSt
 }
 
 export async function updateCompany(id: string, updates: Partial<FeaturedStartup>): Promise<{ data: FeaturedStartup | null; error: Error | null }> {
-  const validFields = {
+  const validFields: Partial<FeaturedStartup> = {
     name: updates.name,
     description: updates.description,
     logo_url: updates.logo_url,
+    image_ref: updates.image_ref,
     learn_more_links: updates.learn_more_links,
     email: updates.email,
     country: updates.country,
@@ -106,6 +107,26 @@ export async function getUserCompanies(userId: string): Promise<{ data: UserComp
   return { data: data || [], error };
 }
 
+export async function getUserPendingRequests(userId: string): Promise<{ data: UserCompany[]; error: Error | null }> {
+  const { data, error } = await supabase
+    .from("user_company")
+    .select(`*, company:featured_startups(*)`)
+    .eq("user_id", userId)
+    .eq("status", "confirmation_pending");
+  return { data: data || [], error };
+}
+
+export async function getUserPendingRequestByCompany(userId: string, companyId: string): Promise<{ data: UserCompany | null; error: Error | null }> {
+  const { data, error } = await supabase
+    .from("user_company")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("company_id", companyId)
+    .eq("status", "confirmation_pending")
+    .single();
+  return { data, error };
+}
+
 export async function getUserCompanyById(userId: string, companyId: string): Promise<{ data: UserCompany | null; error: Error | null }> {
   const { data, error } = await supabase.from("user_company").select(`*, company:featured_startups(*)`).eq("user_id", userId).eq("company_id", companyId).single();
   return { data, error };
@@ -131,10 +152,10 @@ export async function claimCompany(userId: string, companyId: string, addedBy: s
 export async function getCompanyUsers(companyId: string): Promise<{ data: UserCompany[]; error: Error | null }> {
   const { data, error } = await supabase
     .from("user_company")
-    .select("*")
+    .select("*, author:authors!user_company_user_id_fkey1(id, name, image_url)")
     .eq("company_id", companyId)
     .order("created_at", { ascending: false });
-  return { data: data || [], error };
+  return { data: data as UserCompany[] || [], error };
 }
 
 export async function addCompanyUser(companyId: string, userEmail: string, role: string, addedBy: string): Promise<{ data: UserCompany | null; error: Error | null }> {
@@ -289,4 +310,35 @@ export async function updateApplicationFeedback(applicationId: string, status: s
 export async function getApplicationFeedback(applicationId: string): Promise<{ data: ApplicationFeedback[]; error: Error | null }> {
   const { data, error } = await supabase.from("applications_feedback").select("*").eq("application_id", applicationId).order("created_at", { ascending: false });
   return { data: data || [], error };
+}
+
+export async function getAllIndustries(): Promise<{ data: Industry[]; error: Error | null }> {
+  const { data, error } = await supabase.from("industries").select("*").order("name");
+  return { data: data || [], error };
+}
+
+export async function getCompanyIndustries(companyId: string): Promise<{ data: string[]; error: Error | null }> {
+  const { data, error } = await supabase
+    .from("company_industries")
+    .select("industry:industries(*)")
+    .eq("company_id", companyId);
+  
+  if (error) return { data: [], error };
+  
+  const industryIds = (data as any[])?.map((d: any) => d.industry?.id).filter(Boolean) as string[] || [];
+  return { data: industryIds, error: null };
+}
+
+export async function setCompanyIndustries(companyId: string, industryIds: string[]): Promise<{ error: Error | null }> {
+  await supabase.from("company_industries").delete().eq("company_id", companyId);
+  
+  if (industryIds.length === 0) return { error: null };
+  
+  const inserts = industryIds.map(industryId => ({
+    company_id: companyId,
+    industry_id: industryId,
+  }));
+  
+  const { error } = await supabase.from("company_industries").insert(inserts);
+  return { error };
 }
