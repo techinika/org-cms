@@ -43,7 +43,7 @@ export interface UserCompany {
   author?: {
     id: string;
     name: string;
-    image_url?: string;
+    image_ref?: string;
   } | null;
 }
 

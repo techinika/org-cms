@@ -152,7 +152,7 @@ export async function claimCompany(userId: string, companyId: string, addedBy: s
 export async function getCompanyUsers(companyId: string): Promise<{ data: UserCompany[]; error: Error | null }> {
   const { data, error } = await supabase
     .from("user_company")
-    .select("*, author:authors!user_company_user_id_fkey1(id, name, image_url)")
+    .select("*, author:authors!user_company_user_id_fkey1(id, name, image_ref)")
     .eq("company_id", companyId)
     .order("created_at", { ascending: false });
   return { data: data as UserCompany[] || [], error };

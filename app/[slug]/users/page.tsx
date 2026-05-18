@@ -21,6 +21,7 @@ import Navbar from "@/components/parts/Navbar";
 import Breadcrumb from "@/components/parts/Breadcrumb";
 import ConfirmationModal from "@/components/ui/ConfirmationModal";
 import { useToast } from "@/components/ui/Toast";
+import AuthorAvatar from "@/components/ui/AuthorAvatar";
 
 const ROLES = ["manager", "events_manager", "opportunities_manager"] as const;
 
@@ -178,13 +179,7 @@ export default function CompanyUsersPage({
               {pendingUsers.map((uc) => (
                 <div key={uc.id} className="p-4 flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    {uc.author?.image_url ? (
-                      <img src={uc.author.image_url} alt={uc.author.name} className="w-10 h-10 rounded-full object-cover" />
-                    ) : (
-                      <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
-                        <Users className="w-5 h-5 text-gray-400" />
-                      </div>
-                    )}
+                    <AuthorAvatar imageRef={uc.author?.image_ref} name={uc.author?.name} />
                     <div>
                       <p className="font-medium text-gray-900">{uc.author?.name || "Unknown"}</p>
                     </div>
@@ -228,13 +223,7 @@ export default function CompanyUsersPage({
               {acceptedUsers.map((uc) => (
                 <div key={uc.id} className="p-4 flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    {uc.author?.image_url ? (
-                      <img src={uc.author.image_url} alt={uc.author.name} className="w-10 h-10 rounded-full object-cover" />
-                    ) : (
-                      <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
-                        <Users className="w-5 h-5 text-gray-400" />
-                      </div>
-                    )}
+                    <AuthorAvatar imageRef={uc.author?.image_ref} name={uc.author?.name} />
                     <div>
                       <p className="font-medium text-gray-900">
                         {uc.author?.name || "Unknown"}
