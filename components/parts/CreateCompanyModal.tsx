@@ -11,7 +11,6 @@ import {
 } from "lucide-react";
 import { FeaturedStartup } from "@/types/company";
 import { supabase, searchCompanies } from "@/lib/supabase";
-import { uploadToImageKit } from "@/lib/imagekit";
 import CompanyLogo from "../ui/CompanyLogo";
 
 interface Props {
