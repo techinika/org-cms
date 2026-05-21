@@ -24,9 +24,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
-    const imageKitPublicKey = process.env.IMAGEKIT_PUBLIC_KEY;
-    if (!imageKitPublicKey) {
-      return NextResponse.json({ error: "ImageKit public key not configured" }, { status: 500 });
+    const privateKey = process.env.IMAGEKIT_PRIVATE_KEY;
+    if (!privateKey) {
+      return NextResponse.json({ error: "ImageKit private key not configured" }, { status: 500 });
     }
 
     const uploadFormData = new FormData();
@@ -34,10 +34,12 @@ export async function POST(request: NextRequest) {
     uploadFormData.append("fileName", file.name || "upload");
     uploadFormData.append("folder", `/${folder}`);
     uploadFormData.append("useUniqueFileName", "true");
-    uploadFormData.append("publicKey", imageKitPublicKey);
 
     const uploadResponse = await fetch("https://upload.imagekit.io/api/v1/files/upload", {
       method: "POST",
+      headers: {
+        "Authorization": `Basic ${Buffer.from(`${privateKey}:`).toString("base64")}`,
+      },
       body: uploadFormData,
     });
 
@@ -52,12 +54,8 @@ export async function POST(request: NextRequest) {
       .from("assets")
       .insert({
         url: imageKitData.url,
-        file_name: imageKitData.name,
-        file_type: imageKitData.fileType,
-        file_size: imageKitData.size,
-        width: imageKitData.width,
-        height: imageKitData.height,
-        imagekit_file_id: imageKitData.fileId,
+        name: imageKitData.name,
+        type: imageKitData.fileType === "image" ? "image" : "doc",
       })
       .select()
       .single();

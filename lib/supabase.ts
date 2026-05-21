@@ -180,22 +180,22 @@ export async function deleteCompanyUser(userCompanyId: string): Promise<{ error:
 }
 
 export async function getEventSchedules(eventId: string): Promise<{ data: EventSchedule[]; error: Error | null }> {
-  const { data, error } = await supabase.from("event_schedules").select("*").eq("event_id", eventId).order("day_index", { ascending: true }).order("order_index", { ascending: true });
+  const { data, error } = await supabase.from("event_schedule").select("*").eq("event_id", eventId).order("day_index", { ascending: true }).order("order_index", { ascending: true });
   return { data: data || [], error };
 }
 
 export async function createEventSchedule(schedule: Partial<EventSchedule>): Promise<{ data: EventSchedule | null; error: Error | null }> {
-  const { data, error } = await supabase.from("event_schedules").insert(schedule).select().single();
+  const { data, error } = await supabase.from("event_schedule").insert(schedule).select().single();
   return { data, error };
 }
 
 export async function updateEventSchedule(id: string, updates: Partial<EventSchedule>): Promise<{ data: EventSchedule | null; error: Error | null }> {
-  const { data, error } = await supabase.from("event_schedules").update({ ...updates, updated_at: new Date().toISOString() }).eq("id", id).select().single();
+  const { data, error } = await supabase.from("event_schedule").update({ ...updates, updated_at: new Date().toISOString() }).eq("id", id).select().single();
   return { data, error };
 }
 
 export async function deleteEventSchedule(id: string): Promise<{ error: Error | null }> {
-  const { error } = await supabase.from("event_schedules").delete().eq("id", id);
+  const { error } = await supabase.from("event_schedule").delete().eq("id", id);
   return { error };
 }
 
@@ -226,12 +226,9 @@ export async function updateEventRegistration(regId: string, updates: { status?:
 
 export async function createAsset(asset: {
   url: string;
-  file_name: string;
-  file_type: string;
-  file_size: number;
-  width?: number | null;
-  height?: number | null;
-  imagekit_file_id: string;
+  name: string;
+  type: string;
+  author_id?: string | null;
 }): Promise<{ data: Asset | null; error: Error | null }> {
   const { data, error } = await supabase
     .from("assets")

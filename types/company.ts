@@ -175,7 +175,7 @@ export interface Speaker {
   bio: string | null;
   company_id: string | null;
   org_name: string | null;
-  profile_picture: string | null;
+  image_ref: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -250,12 +250,10 @@ export const EVENT_FORMATS = ["Webinar", "Conference", "Workshop", "Networking",
 export interface Asset {
   id: string;
   url: string;
-  file_name: string;
-  file_type: string;
-  file_size: number;
-  width: number | null;
-  height: number | null;
-  imagekit_file_id: string;
+  name: string;
+  type: string;
+  views: number | null;
+  author_id: string | null;
   created_at: string;
   updated_at?: string;
 }

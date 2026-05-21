@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   Plus,
   Trash2,
+  Pencil,
 } from "lucide-react";
 import { Event, FeaturedStartup } from "@/types/company";
 import { getEventById } from "@/lib/supabase";
@@ -46,6 +47,10 @@ export default function EventPartnersPage({ params }: Props) {
   const [searchQuery, setSearchQuery] = useState("");
   const [showCreateNew, setShowCreateNew] = useState(false);
   const [newCompany, setNewCompany] = useState({ name: "", description: "", logo_url: "" });
+
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingPartner, setEditingPartner] = useState<EventCompany | null>(null);
+  const [editRelationship, setEditRelationship] = useState("partner");
 
   useEffect(() => {
     checkAuth();
@@ -144,6 +149,27 @@ export default function EventPartnersPage({ params }: Props) {
     setSaving(false);
   };
 
+  const openEdit = (p: EventCompany) => {
+    setEditingPartner(p);
+    setEditRelationship(p.relationship || "partner");
+    setShowEditModal(true);
+  };
+
+  const handleEditPartner = async () => {
+    if (!editingPartner) return;
+    setSaving(true);
+    const { error } = await supabase.from("event_companies").update({ relationship: editRelationship }).eq("id", editingPartner.id);
+    setSaving(false);
+    if (error) {
+      showToast("Failed to update partner", "error");
+    } else {
+      showToast("Partner updated", "success");
+      setShowEditModal(false);
+      setEditingPartner(null);
+      fetchData();
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -214,8 +240,19 @@ export default function EventPartnersPage({ params }: Props) {
                 </div>
                 <div className="flex-1">
                   <p className="font-medium text-gray-900">{p.company?.name}</p>
-                  <span className="text-xs px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full capitalize">{p.relationship}</span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${
+                    p.relationship === "sponsor" ? "bg-purple-100 text-purple-700" :
+                    p.relationship === "organizer" ? "bg-blue-100 text-blue-700" :
+                    p.relationship === "supporter" ? "bg-teal-100 text-teal-700" :
+                    "bg-orange-100 text-orange-700"
+                  }`}>{p.relationship}</span>
                 </div>
+                <button
+                  onClick={() => openEdit(p)}
+                  className="p-2 text-gray-400 hover:text-[#3182ce] hover:bg-blue-50 rounded-xl transition-colors"
+                >
+                  <Pencil className="w-5 h-5" />
+                </button>
                 <button
                   onClick={() => handleRemovePartner(p.id)}
                   disabled={saving}
@@ -255,6 +292,25 @@ export default function EventPartnersPage({ params }: Props) {
                     Create New Company
                   </button>
                 </div>
+                <div className="mb-4">
+                    <label className="block text-sm font-medium mb-1">Relationship Type</label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {(["partner", "sponsor", "organizer", "supporter"] as const).map((type) => (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => setRelationship(type)}
+                        className={`px-3 py-2 rounded-xl text-sm font-medium capitalize border ${
+                          relationship === type
+                            ? "bg-[#3182ce]/5 text-[#3182ce] border-[#3182ce]"
+                            : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
+                        }`}
+                      >
+                        {type}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <div className="space-y-2 max-h-48 overflow-y-auto">
                   {companies
                     .filter((c) => !partners.some((p) => p.company_id === c.id))
@@ -289,6 +345,25 @@ export default function EventPartnersPage({ params }: Props) {
                     className="w-full px-4 py-2.5 border rounded-xl"
                     placeholder="Company name"
                   />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Relationship Type</label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {(["partner", "sponsor", "organizer", "supporter"] as const).map((type) => (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => setRelationship(type)}
+                        className={`px-3 py-2 rounded-xl text-sm font-medium capitalize border ${
+                          relationship === type
+                            ? "bg-[#3182ce]/5 text-[#3182ce] border-[#3182ce]"
+                            : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
+                        }`}
+                      >
+                        {type}
+                      </button>
+                    ))}
+                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Logo URL</label>
@@ -332,6 +407,50 @@ export default function EventPartnersPage({ params }: Props) {
                 className="flex-1 px-4 py-2 bg-[#3182ce] text-white rounded-xl hover:bg-[#2c5cb8] disabled:opacity-50"
               >
                 {saving ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : showCreateNew ? "Create & Add" : "Add"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showEditModal && editingPartner && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowEditModal(false)} />
+          <div className="relative bg-white rounded-2xl w-full max-w-lg p-6">
+            <h2 className="text-lg font-semibold mb-4">Edit Partner</h2>
+            <p className="text-sm text-gray-500 mb-4">{editingPartner.company?.name}</p>
+
+            <label className="block text-sm font-medium mb-2">Relationship Type</label>
+            <div className="grid grid-cols-4 gap-2 mb-6">
+              {(["partner", "sponsor", "organizer", "supporter"] as const).map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => setEditRelationship(type)}
+                  className={`px-3 py-2 rounded-xl text-sm font-medium capitalize border ${
+                    editRelationship === type
+                      ? "bg-[#3182ce]/5 text-[#3182ce] border-[#3182ce]"
+                      : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
+                  }`}
+                >
+                  {type}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleEditPartner}
+                disabled={saving}
+                className="flex-1 px-4 py-2 bg-[#3182ce] text-white rounded-xl hover:bg-[#2c5cb8] disabled:opacity-50"
+              >
+                {saving ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : "Save Changes"}
               </button>
             </div>
           </div>
