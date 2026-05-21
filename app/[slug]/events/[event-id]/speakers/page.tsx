@@ -77,8 +77,6 @@ export default function EventSpeakersPage({ params }: Props) {
   const [companies, setCompanies] = useState<FeaturedStartup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [user, setUser] = useState<{ name: string; email: string; avatar?: string } | null>(null);
-
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedSpeaker, setSelectedSpeaker] = useState<string | null>(null);
   const [showCreateNew, setShowCreateNew] = useState(false);
@@ -108,7 +106,6 @@ export default function EventSpeakersPage({ params }: Props) {
       window.location.href = getAuthRedirectUrl();
       return;
     }
-    setUser({ name: authResult.user.name, email: authResult.user.email, avatar: authResult.user.avatar });
     fetchData();
   };
 
@@ -316,8 +313,8 @@ export default function EventSpeakersPage({ params }: Props) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar user={user || undefined} />
-
+      <Navbar />
+      
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Breadcrumb items={[
           { label: "Events", href: `/${slug}/events` },

@@ -11,20 +11,18 @@ import {
   Briefcase,
   ExternalLink,
   Loader2,
-  ArrowLeft,
   Save,
-  Trash2,
   Tags,
   FileText,
 } from "lucide-react";
-import { FeaturedStartup, INDUSTRIES } from "@/types/company";
-import { getCompanyBySlug, updateCompany, removeUserCompany } from "@/lib/supabase";
+import { FeaturedStartup, Industry } from "@/types/company";
+import { getCompanyBySlug, updateCompany, removeUserCompany, getAllIndustries, getCompanyIndustries, setCompanyIndustries } from "@/lib/supabase";
 import { checkAuthClient, getAuthRedirectUrl } from "@/lib/auth-client";
 import Navbar from "@/components/parts/Navbar";
 import Breadcrumb from "@/components/parts/Breadcrumb";
-import { uploadToImageKit } from "@/lib/imagekit";
 import ConfirmationModal from "@/components/ui/ConfirmationModal";
 import { useToast } from "@/components/ui/Toast";
+import CompanyLogo from "@/components/ui/CompanyLogo";
 
 export default function CompanyProfilePage({
   params,
@@ -37,12 +35,13 @@ export default function CompanyProfilePage({
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<{
     name: string;
     email: string;
+    id: string;
     avatar?: string;
+    profilePicture?: string | null;
   } | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -53,9 +52,10 @@ export default function CompanyProfilePage({
     email: "",
     country: "",
     location: "",
-    industry: "",
     tags: "",
   });
+  const [industries, setIndustries] = useState<Industry[]>([]);
+  const [selectedIndustryIds, setSelectedIndustryIds] = useState<string[]>([]);
 
   useEffect(() => {
     checkAuth();
@@ -68,16 +68,23 @@ export default function CompanyProfilePage({
       return;
     }
     setUser({
+      id: authResult.user.id,
       name: authResult.user.name,
       email: authResult.user.email,
       avatar: authResult.user.avatar,
+      profilePicture: authResult.profilePicture,
     });
     fetchCompany();
   };
 
   const fetchCompany = async () => {
     setIsLoading(true);
-    const { data, error } = await getCompanyBySlug(slug);
+    const [{ data, error }, { data: industriesData }, { data: companyIndustryIds }] = await Promise.all([
+      getCompanyBySlug(slug),
+      getAllIndustries(),
+      Promise.resolve({ data: [] as string[] }),
+    ]);
+    
     if (error || !data) {
       setError("Company not found");
       setIsLoading(false);
@@ -91,18 +98,22 @@ export default function CompanyProfilePage({
       email: data.email || "",
       country: data.country || "",
       location: data.location || "",
-      industry: data.industry || "",
       tags: data.tags || "",
     });
-    setLogoPreview(data.logo_url);
+    
+    setIndustries(industriesData || []);
+    
+    if (data.id) {
+      const { data: ids } = await getCompanyIndustries(data.id);
+      setSelectedIndustryIds(ids || []);
+    }
+    
     setIsLoading(false);
   };
 
   const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !company) return;
-    const previewUrl = URL.createObjectURL(file);
-    setLogoPreview(previewUrl);
     setIsUploading(true);
     try {
       const result = await fetch("/api/upload-image", {
@@ -111,13 +122,19 @@ export default function CompanyProfilePage({
           const fd = new FormData();
           fd.append("file", file);
           fd.append("folder", "companies");
+          if (user?.id) {
+            fd.append("authorId", user.id);
+          }
           return fd;
         })(),
       }).then(r => r.json());
       
       if (result.asset_id) {
-        await saveCompany({ logo_url: result.url, image_ref: result.asset_id });
-        setLogoPreview(result.url);
+        const { data: updated } = await updateCompany(company.id, { logo_url: result.url, image_ref: result.asset_id });
+        if (updated) {
+          setCompany(updated);
+          showToast("Logo updated successfully", "success");
+        }
       } else {
         throw new Error(result.error || "Upload failed");
       }
@@ -136,6 +153,11 @@ export default function CompanyProfilePage({
       ...formData,
       ...updates,
     });
+    
+    if (!error && company.id) {
+      await setCompanyIndustries(company.id, selectedIndustryIds);
+    }
+    
     if (error) {
       setError("Failed to save");
       showToast("Failed to save changes", "error");
@@ -148,17 +170,17 @@ export default function CompanyProfilePage({
 
   const handleSave = () => saveCompany({});
 
-  const handleDeleteCompany = async () => {
+  const handleLeaveCompany = async () => {
     if (!company || !user) return;
     setDeletingId(company.id);
-    const { error } = await removeUserCompany(user.email, company.id);
+    const { error } = await removeUserCompany(user.id, company.id);
     setDeletingId(null);
     setShowDeleteModal(false);
     if (error) {
-      setError("Failed to remove company");
-      showToast("Failed to remove company", "error");
+      setError("Failed to leave company");
+      showToast("Failed to leave company", "error");
     } else {
-      showToast("Company removed from your account", "success");
+      showToast("You have left the company", "success");
       window.location.href = "/";
     }
   };
@@ -184,7 +206,7 @@ export default function CompanyProfilePage({
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar user={user || undefined} />
+      <Navbar />
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Breadcrumb items={[
@@ -200,12 +222,10 @@ export default function CompanyProfilePage({
               <div className="flex items-end gap-4">
                 <div className="relative group">
                   <div className="w-24 h-24 rounded-2xl bg-white border-4 border-white shadow-lg flex items-center justify-center overflow-hidden">
-                    {logoPreview ? (
-                      <img
-                        src={logoPreview}
-                        alt={company.name}
-                        className="w-full h-full object-cover"
-                      />
+                    {isUploading ? (
+                      <Loader2 className="w-8 h-8 text-gray-300 animate-spin" />
+                    ) : company.image_ref ? (
+                      <CompanyLogo company={company} size="lg" className="w-full h-full rounded-xl" />
                     ) : (
                       <Building2 className="w-10 h-10 text-gray-300" />
                     )}
@@ -216,6 +236,7 @@ export default function CompanyProfilePage({
                       accept="image/*"
                       className="hidden"
                       onChange={handleLogoChange}
+                      disabled={isUploading}
                     />
                     {isUploading ? (
                       <Loader2 className="w-5 h-5 text-white animate-spin" />
@@ -230,10 +251,10 @@ export default function CompanyProfilePage({
                   <h1 className="text-2xl font-bold text-gray-900">
                     {company.name}
                   </h1>
-                  {company.industry && (
+                  {selectedIndustryIds.length > 0 && (
                     <p className="text-sm text-gray-500 flex items-center gap-1">
                       <Briefcase className="w-4 h-4" />
-                      {company.industry}
+                      {industries.filter(i => selectedIndustryIds.includes(i.id)).map(i => i.name).join(", ")}
                     </p>
                   )}
                 </div>
@@ -241,9 +262,9 @@ export default function CompanyProfilePage({
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setShowDeleteModal(true)}
-                  className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
+                  className="px-4 py-2 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded-xl transition-colors border border-red-200"
                 >
-                  <Trash2 className="w-5 h-5" />
+                  Leave Company
                 </button>
               </div>
             </div>
@@ -446,20 +467,25 @@ export default function CompanyProfilePage({
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
                 Industry
               </label>
-              <select
-                value={formData.industry}
-                onChange={(e) =>
-                  setFormData({ ...formData, industry: e.target.value })
-                }
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none transition-all bg-white"
-              >
-                <option value="">Select an industry</option>
-                {INDUSTRIES.map((ind) => (
-                  <option key={ind} value={ind}>
-                    {ind}
-                  </option>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-48 overflow-y-auto border border-gray-200 rounded-xl p-3">
+                {industries.map((ind) => (
+                  <label key={ind.id} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-2 rounded-lg">
+                    <input
+                      type="checkbox"
+                      checked={selectedIndustryIds.includes(ind.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedIndustryIds([...selectedIndustryIds, ind.id]);
+                        } else {
+                          setSelectedIndustryIds(selectedIndustryIds.filter(id => id !== ind.id));
+                        }
+                      }}
+                      className="w-4 h-4 rounded border-gray-300 text-[#3182ce] focus:ring-[#3182ce]"
+                    />
+                    <span className="text-sm text-gray-700">{ind.name}</span>
+                  </label>
                 ))}
-              </select>
+              </div>
             </div>
 
             <div className="pt-4 border-t border-gray-200">
@@ -492,9 +518,10 @@ export default function CompanyProfilePage({
       {showDeleteModal && (
         <ConfirmationModal
           isOpen={showDeleteModal}
-          title="Remove Company"
-          message={`Are you sure you want to remove "${company.name}" from your account? The company and all its events and opportunities will remain unchanged.`}
-          onConfirm={handleDeleteCompany}
+          title="Leave Company"
+          message={`Are you sure you want to leave "${company.name}"? You will lose access to manage this company and its events and opportunities.`}
+          confirmLabel="Leave Company"
+          onConfirm={handleLeaveCompany}
           onCancel={() => setShowDeleteModal(false)}
         />
       )}

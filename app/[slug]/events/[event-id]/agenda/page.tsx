@@ -83,7 +83,6 @@ export default function EventAgendaPage({ params }: Props) {
   const [eventSpeakers, setEventSpeakers] = useState<EventSpeaker[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [user, setUser] = useState<{ name: string; email: string; avatar?: string } | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState<EventSchedule | null>(null);
   const [form, setForm] = useState({
@@ -101,57 +100,61 @@ export default function EventAgendaPage({ params }: Props) {
   const [showSpeakerDropdown, setShowSpeakerDropdown] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  async function checkAuth() {
+    const authResult = await checkAuthClient();
+    if (!authResult.authenticated || !authResult.user) {
+      window.location.assign(getAuthRedirectUrl());
+      return;
+    }
+    fetchData();
+  }
+
   useEffect(() => {
     checkAuth();
   }, [slug, eventId]);
 
-  const checkAuth = async () => {
-    const authResult = await checkAuthClient();
-    if (!authResult.authenticated || !authResult.user) {
-      window.location.href = getAuthRedirectUrl();
-      return;
-    }
-    setUser({ name: authResult.user.name, email: authResult.user.email, avatar: authResult.user.avatar });
-    fetchData();
-  };
-
-  const fetchData = async () => {
+  async function fetchData() {
     setIsLoading(true);
-    const { data: eventData } = await getEventById(eventId);
-    if (eventData) setEvent(eventData);
+    setError(null);
+    try {
+      const { data: eventData } = await getEventById(eventId);
+      if (eventData) setEvent(eventData);
 
-    const { data: schedulesData } = await getEventSchedules(eventId);
-    setSchedules(schedulesData || []);
+      const { data: schedulesData } = await getEventSchedules(eventId);
+      setSchedules(schedulesData || []);
 
-    const { data: eventSpeakersRaw } = await supabase
-      .from("event_speakers")
-      .select("id, speaker_id")
-      .eq("event_id", eventId);
-    const speakerIds = (eventSpeakersRaw || []).map((es: { id: string; speaker_id: string }) => es.speaker_id);
-    if (speakerIds.length > 0) {
-      const { data: speakersData } = await supabase
-        .from("speakers")
-        .select("id, name, title, asset:assets!image_ref(url)")
-        .in("id", speakerIds);
-      type SpeakerRow = { id: string; name: string; title: string | null; asset: { url: string }[] | null };
-      type SpeakerMapped = { id: string; name: string; title: string | null; asset: { url: string } | null };
-      const speakerMap = new Map<string, SpeakerMapped>((speakersData || []).map((s: SpeakerRow) => [
-        s.id,
-        { id: s.id, name: s.name, title: s.title, asset: Array.isArray(s.asset) ? s.asset[0] : s.asset },
-      ]));
-      setEventSpeakers(
-        ((eventSpeakersRaw || []) as { id: string; speaker_id: string }[]).map((es) => ({
-          id: es.id,
-          speaker_id: es.speaker_id,
-          speaker: speakerMap.get(es.speaker_id),
-        })) as EventSpeaker[]
-      );
-    } else {
-      setEventSpeakers([]);
+      const { data: eventSpeakersRaw } = await supabase
+        .from("event_speakers")
+        .select("id, speaker_id")
+        .eq("event_id", eventId);
+      const speakerIds = (eventSpeakersRaw || []).map((es: { id: string; speaker_id: string }) => es.speaker_id);
+      if (speakerIds.length > 0) {
+        const { data: speakersData } = await supabase
+          .from("speakers")
+          .select("id, name, title, asset:assets!image_ref(url)")
+          .in("id", speakerIds);
+        type SpeakerRow = { id: string; name: string; title: string | null; asset: { url: string }[] | null };
+        type SpeakerMapped = { id: string; name: string; title: string | null; asset: { url: string } | null };
+        const speakerMap = new Map<string, SpeakerMapped>((speakersData || []).map((s: SpeakerRow) => [
+          s.id,
+          { id: s.id, name: s.name, title: s.title, asset: Array.isArray(s.asset) ? s.asset[0] : s.asset },
+        ]));
+        setEventSpeakers(
+          ((eventSpeakersRaw || []) as { id: string; speaker_id: string }[]).map((es) => ({
+            id: es.id,
+            speaker_id: es.speaker_id,
+            speaker: speakerMap.get(es.speaker_id),
+          })) as EventSpeaker[]
+        );
+      } else {
+        setEventSpeakers([]);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load agenda data");
+    } finally {
+      setIsLoading(false);
     }
-
-    setIsLoading(false);
-  };
+  }
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -276,8 +279,8 @@ export default function EventAgendaPage({ params }: Props) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar user={user || undefined} />
-
+      <Navbar />
+      
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Breadcrumb items={[
           { label: "Events", href: `/${slug}/events` },

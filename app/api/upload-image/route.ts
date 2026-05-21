@@ -19,13 +19,14 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const file = formData.get("file") as File;
     const folder = (formData.get("folder") as string) || "companies";
+    const authorId = formData.get("authorId") as string | null;
 
     if (!file) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
-    const privateKey = process.env.IMAGEKIT_PRIVATE_KEY;
-    if (!privateKey) {
+    const imageKitPrivateKey = process.env.IMAGEKIT_PRIVATE_KEY;
+    if (!imageKitPrivateKey) {
       return NextResponse.json({ error: "ImageKit private key not configured" }, { status: 500 });
     }
 
@@ -38,7 +39,7 @@ export async function POST(request: NextRequest) {
     const uploadResponse = await fetch("https://upload.imagekit.io/api/v1/files/upload", {
       method: "POST",
       headers: {
-        "Authorization": `Basic ${Buffer.from(`${privateKey}:`).toString("base64")}`,
+        "Authorization": `Basic ${Buffer.from(`${imageKitPrivateKey}:`).toString("base64")}`,
       },
       body: uploadFormData,
     });
@@ -50,12 +51,16 @@ export async function POST(request: NextRequest) {
 
     const imageKitData: ImageKitResponse = await uploadResponse.json();
 
+    const fileType = imageKitData.fileType === "image" ? "image" : imageKitData.fileType === "video" ? "video" : "doc";
+
     const { data: asset, error: assetError } = await supabase
       .from("assets")
       .insert({
-        url: imageKitData.url,
         name: imageKitData.name,
-        type: imageKitData.fileType === "image" ? "image" : "doc",
+        url: imageKitData.url,
+        type: fileType,
+        views: 0,
+        author_id: authorId || null,
       })
       .select()
       .single();

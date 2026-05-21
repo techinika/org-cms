@@ -1,37 +1,45 @@
 "use client";
 
-import { Building2, User, ChevronDown, LogOut, Settings, LayoutDashboard, Users, Bell } from "lucide-react";
-import { useState } from "react";
+import { Building2, User, ChevronDown, LogOut, Settings, LayoutDashboard, Home } from "lucide-react";
+import { useState, useEffect } from "react";
+import { checkAuthClient } from "@/lib/auth-client";
 
-interface NavbarProps {
-  user?: {
-    name: string;
-    email: string;
-    avatar?: string;
-  };
-}
-
-export default function Navbar({ user }: NavbarProps) {
+export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
+  const [user, setUser] = useState<{ name: string; email: string; profilePicture: string | null } | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
-  const defaultUser = {
-    name: "John Doe",
-    email: "john@example.com",
-    avatar: null,
+  useEffect(() => {
+    const loadUser = async () => {
+      const authResult = await checkAuthClient();
+      if (authResult.authenticated && authResult.user) {
+        setUser({
+          name: authResult.name || authResult.user.name || "User",
+          email: authResult.user.email || "",
+          profilePicture: authResult.profilePicture,
+        });
+        setIsAdmin(authResult.isAdmin);
+      }
+    };
+    loadUser();
+  }, []);
+
+  const currentUser = user || {
+    name: "User",
+    email: "",
+    profilePicture: null,
   };
-
-  const currentUser = user || defaultUser;
 
   return (
     <nav className="bg-white border-b border-gray-200 sticky top-0 z-40">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-10 h-10 bg-[#3182ce] rounded-xl">
+            <div className="flex items-center justify-center w-10 h-10 bg-[#3182ce] rounded-xl cursor-pointer" onClick={() => window.location.href = "/"}>
               <Building2 className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-lg font-semibold text-gray-900">Org CMS</h1>
+              <h1 className="text-lg font-semibold text-gray-900 cursor-pointer" onClick={() => window.location.href = "/"}>Org CMS</h1>
               <p className="text-xs text-gray-500 hidden sm:block">Company Management</p>
             </div>
           </div>
@@ -43,9 +51,9 @@ export default function Navbar({ user }: NavbarProps) {
                 className="flex items-center gap-2 p-1.5 rounded-xl hover:bg-gray-100 transition-colors"
               >
                 <div className="w-9 h-9 rounded-full bg-[#3182ce] flex items-center justify-center">
-                  {currentUser.avatar ? (
+                  {currentUser.profilePicture ? (
                     <img
-                      src={currentUser.avatar}
+                      src={currentUser.profilePicture}
                       alt={currentUser.name}
                       className="w-9 h-9 rounded-full object-cover"
                     />
@@ -63,18 +71,22 @@ export default function Navbar({ user }: NavbarProps) {
                 </div>
                 
                 <div className="py-1">
-                  <button className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3">
-                    <LayoutDashboard className="w-4 h-4 text-gray-400" />
-                    Dashboard
+                  <button 
+                    onClick={() => window.location.href = "/"}
+                    className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3"
+                  >
+                    <Home className="w-4 h-4 text-gray-400" />
+                    Home
                   </button>
-                  <button className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3">
-                    <Users className="w-4 h-4 text-gray-400" />
-                    All Companies
-                  </button>
-                  <button className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3">
-                    <Bell className="w-4 h-4 text-gray-400" />
-                    Notifications
-                  </button>
+                  {isAdmin && (
+                    <button 
+                      onClick={() => setIsOpen(false)}
+                      className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3"
+                    >
+                      <LayoutDashboard className="w-4 h-4 text-gray-400" />
+                      All Companies
+                    </button>
+                  )}
                 </div>
 
                 <div className="border-t border-gray-100 py-1">

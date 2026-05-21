@@ -104,11 +104,7 @@ export default function OpportunityPage({
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [user, setUser] = useState<{
-    name: string;
-    email: string;
-    avatar?: string;
-  } | null>(null);
+  const [userEmail, setUserEmail] = useState<string | undefined>(undefined);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -187,11 +183,7 @@ export default function OpportunityPage({
       window.location.href = getAuthRedirectUrl();
       return;
     }
-    setUser({
-      name: authResult.user.name,
-      email: authResult.user.email,
-      avatar: authResult.user.avatar,
-    });
+    setUserEmail(authResult.user.email);
     fetchOpportunity();
   };
 
@@ -260,7 +252,7 @@ export default function OpportunityPage({
     message?: string,
   ) => {
     setIsSendingFeedback(true);
-    await updateApplicationFeedback(appId, newStatus, message, user?.email);
+    await updateApplicationFeedback(appId, newStatus, message, userEmail);
 
     const app = applications.find((a) => a.id === appId);
     const recipientEmail = app?.email || app?.tender_email;
@@ -380,7 +372,7 @@ export default function OpportunityPage({
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar user={user || undefined} />
+      <Navbar />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <Breadcrumb items={[
