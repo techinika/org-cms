@@ -36,26 +36,31 @@ export default function EventFaqsPage({ params }: Props) {
     checkAuth();
   }, [slug, eventId]);
 
-  const checkAuth = async () => {
+  async function checkAuth() {
     const authResult = await checkAuthClient();
     if (!authResult.authenticated || !authResult.user) {
-      window.location.href = getAuthRedirectUrl();
+      window.location.assign(getAuthRedirectUrl());
       return;
     }
     fetchData();
-  };
+  }
 
-  const fetchData = async () => {
+  async function fetchData() {
     setIsLoading(true);
-    const { data: eventData } = await getEventById(eventId);
-    if (eventData) {
-      setEvent(eventData);
-      if (eventData.faqs && Array.isArray(eventData.faqs)) {
-        setFaqs(eventData.faqs as { question: string; answer: string }[]);
+    try {
+      const { data: eventData } = await getEventById(eventId);
+      if (eventData) {
+        setEvent(eventData);
+        if (eventData.faqs && Array.isArray(eventData.faqs)) {
+          setFaqs(eventData.faqs as { question: string; answer: string }[]);
+        }
       }
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Failed to load FAQs", "error");
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
-  };
+  }
 
   const saveFaqs = async (updatedFaqs: { question: string; answer: string }[]) => {
     setSaving(true);
