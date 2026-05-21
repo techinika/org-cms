@@ -57,7 +57,6 @@ export default function EventRegistrationsPage({ params }: Props) {
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [tickets, setTickets] = useState<{ id: string; name: string }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [user, setUser] = useState<{ name: string; email: string; avatar?: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [showQrModal, setShowQrModal] = useState(false);
@@ -72,15 +71,10 @@ export default function EventRegistrationsPage({ params }: Props) {
 
   const checkAuth = async () => {
     const authResult = await checkAuthClient();
-    if (!authResult.authenticated || !authResult.user) {
+if (!authResult.authenticated || !authResult.user) {
       window.location.href = getAuthRedirectUrl();
       return;
     }
-    setUser({
-      name: authResult.user.name,
-      email: authResult.user.email,
-      avatar: authResult.user.avatar
-    });
     fetchData();
   };
 
@@ -206,7 +200,7 @@ export default function EventRegistrationsPage({ params }: Props) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar user={user || undefined} />
+      <Navbar />
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Breadcrumb items={[

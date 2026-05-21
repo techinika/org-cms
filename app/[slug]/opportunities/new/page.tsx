@@ -33,11 +33,6 @@ export default function NewOpportunityPage({ params }: Props) {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [user, setUser] = useState<{
-    name: string;
-    email: string;
-    avatar?: string;
-  } | null>(null);
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     title: "",
@@ -75,11 +70,6 @@ export default function NewOpportunityPage({ params }: Props) {
       window.location.href = getAuthRedirectUrl();
       return;
     }
-    setUser({
-      name: authResult.user.name,
-      email: authResult.user.email,
-      avatar: authResult.user.avatar,
-    });
     await fetchCompany();
   };
 
@@ -144,7 +134,7 @@ export default function NewOpportunityPage({ params }: Props) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar user={user || undefined} />
+      <Navbar />
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <Breadcrumb items={[

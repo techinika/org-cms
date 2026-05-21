@@ -1,7 +1,7 @@
 "use client";
 
 import { Event } from "@/types/company";
-import { Calendar, Loader2, MoreVertical, Trash2 } from "lucide-react";
+import { Calendar, Loader2, MoreVertical, Trash2, ExternalLink, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 
 interface EventCardProps {
@@ -21,17 +21,26 @@ export function EventCard({
   showMenu,
   onToggleMenu,
 }: EventCardProps) {
+  const isExternal = event.registration_type === "external";
+  const eventUrl = isExternal && event.external_link
+    ? event.external_link
+    : `/${slug}/events/${event.id}`;
+
   return (
     <div className="p-4 flex items-center gap-4 hover:bg-gray-50 transition-colors">
       <Link
-        href={`/${slug}/events/${event.id}`}
+        href={eventUrl}
+        target={isExternal ? "_blank" : undefined}
+        rel={isExternal ? "noopener noreferrer" : undefined}
         className="w-14 h-14 bg-[#3182ce]/10 rounded-xl flex items-center justify-center flex-shrink-0"
       >
         <Calendar className="w-7 h-7 text-[#3182ce]" />
       </Link>
       <div className="flex-1 min-w-0">
         <Link
-          href={`/${slug}/events/${event.id}`}
+          href={eventUrl}
+          target={isExternal ? "_blank" : undefined}
+          rel={isExternal ? "noopener noreferrer" : undefined}
           className="font-medium text-gray-900 hover:text-[#3182ce] transition-colors block truncate"
         >
           {event.title}
@@ -42,17 +51,29 @@ export function EventCard({
         <p className="text-sm text-gray-500">
           {event.start_date ? new Date(event.start_date).toLocaleDateString() : "TBA"}
         </p>
-        <span
-          className={`text-xs px-2 py-0.5 rounded-full ${
-            event.status === "Upcoming" ||
-            event.status === "Happening" ||
-            event.publish_status === "published"
-              ? "bg-green-100 text-green-700"
-              : "bg-gray-100 text-gray-600"
-          }`}
-        >
-          {event.status || "draft"}
-        </span>
+        <div className="flex items-center gap-1.5 justify-end mt-0.5">
+          <span
+            className={`text-xs px-2 py-0.5 rounded-full ${
+              event.status === "Upcoming" ||
+              event.status === "Happening" ||
+              event.publish_status === "published"
+                ? "bg-green-100 text-green-700"
+                : "bg-gray-100 text-gray-600"
+            }`}
+          >
+            {event.status || "draft"}
+          </span>
+          <span className={`text-xs px-2 py-0.5 rounded-full flex items-center gap-1 ${
+            isExternal ? "bg-blue-100 text-blue-700" : "bg-purple-100 text-purple-700"
+          }`}>
+            {isExternal ? (
+              <ExternalLink className="w-3 h-3" />
+            ) : (
+              <CheckCircle2 className="w-3 h-3" />
+            )}
+            {isExternal ? "External" : "Platform"}
+          </span>
+        </div>
       </div>
       <div className="relative">
         <button

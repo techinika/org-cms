@@ -16,6 +16,7 @@ import Navbar from "@/components/parts/Navbar";
 import Breadcrumb from "@/components/parts/Breadcrumb";
 import { useToast } from "@/components/ui/Toast";
 import { supabase } from "@/lib/supabase";
+import CompanyLogo from "@/components/ui/CompanyLogo";
 
 interface EventCompany {
   id: number;
@@ -38,7 +39,6 @@ export default function EventPartnersPage({ params }: Props) {
   const [companies, setCompanies] = useState<FeaturedStartup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [user, setUser] = useState<{ name: string; email: string; avatar?: string } | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState<string | null>(null);
   const [relationship, setRelationship] = useState<string>("partner");
@@ -57,7 +57,6 @@ export default function EventPartnersPage({ params }: Props) {
       window.location.href = getAuthRedirectUrl();
       return;
     }
-    setUser({ name: authResult.user.name, email: authResult.user.email, avatar: authResult.user.avatar });
     fetchData();
   };
 
@@ -70,12 +69,33 @@ export default function EventPartnersPage({ params }: Props) {
       .from("event_companies")
       .select("*, company:featured_startups(*)")
       .eq("event_id", eventId);
+    
+    if (partnersData) {
+      for (const p of partnersData) {
+        if (p.company?.image_ref) {
+          const { data: asset } = await supabase.from("assets").select("url").eq("id", p.company.image_ref).single();
+          if (asset) {
+            p.company.logo_url = asset.url;
+          }
+        }
+      }
+    }
     setPartners(partnersData || []);
 
     const { data: allCompanies } = await supabase
       .from("featured_startups")
       .select("*")
       .order("name");
+    if (allCompanies) {
+      for (const company of allCompanies) {
+        if (company.image_ref) {
+          const { data: asset } = await supabase.from("assets").select("url").eq("id", company.image_ref).single();
+          if (asset) {
+            company.logo_url = asset.url;
+          }
+        }
+      }
+    }
     setCompanies(allCompanies || []);
     setIsLoading(false);
   };
@@ -163,7 +183,7 @@ export default function EventPartnersPage({ params }: Props) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar user={user || undefined} />
+      <Navbar />
       
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Breadcrumb items={[
@@ -205,12 +225,8 @@ export default function EventPartnersPage({ params }: Props) {
           <div className="bg-white rounded-2xl border border-gray-200 divide-y divide-gray-200">
             {partners.map((p) => (
               <div key={p.id} className="p-4 flex items-center gap-4">
-                <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center overflow-hidden">
-                  {p.company?.logo_url ? (
-                    <img src={p.company.logo_url} className="w-12 h-12 object-cover" />
-                  ) : (
-                    <Building2 className="w-6 h-6 text-gray-400" />
-                  )}
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center overflow-hidden">
+                  {p.company && <CompanyLogo company={p.company} size="md" />}
                 </div>
                 <div className="flex-1">
                   <p className="font-medium text-gray-900">{p.company?.name}</p>
@@ -267,12 +283,8 @@ export default function EventPartnersPage({ params }: Props) {
                           selectedCompany === company.id ? "border-[#3182ce] bg-[#3182ce]/5" : "border-gray-200"
                         }`}
                       >
-                        <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden">
-                          {company.logo_url ? (
-                            <img src={company.logo_url} className="w-10 h-10 object-cover" />
-                          ) : (
-                            <Building2 className="w-5 h-5 text-gray-400" />
-                          )}
+                        <div className="w-10 h-10 rounded-lg flex items-center justify-center overflow-hidden">
+                          {company && <CompanyLogo company={company} size="sm" />}
                         </div>
                         <span className="font-medium">{company.name}</span>
                       </button>

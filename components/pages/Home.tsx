@@ -4,7 +4,6 @@ import React, { useState, useEffect, Suspense } from "react";
 import {
   Plus,
   Search,
-  MoreVertical,
   MapPin,
   Globe,
   ArrowRight,
@@ -12,15 +11,16 @@ import {
   Loader2,
   AlertCircle,
   CheckCircle,
-  Trash2,
+  XCircle,
 } from "lucide-react";
 import { FeaturedStartup, UserCompany, AuthUser } from "@/types/company";
-import { getUserCompanies, getAllCompanies, claimCompany, deleteCompany } from "@/lib/supabase";
+import { getUserCompanies, getAllCompanies, claimCompany, getUserPendingRequests, supabase } from "@/lib/supabase";
 import { checkAuthClient, getAuthRedirectUrl } from "@/lib/auth-client";
 import CreateCompanyModal from "../parts/CreateCompanyModal";
 import Navbar from "../parts/Navbar";
-import ConfirmationModal from "../ui/ConfirmationModal";
 import { useToast } from "../ui/Toast";
+import ConfirmationModal from "../ui/ConfirmationModal";
+import CompanyLogo from "../ui/CompanyLogo";
 
 function UserBadge({ status }: { status: string | null | undefined }) {
   if (status === "accepted") {
@@ -59,15 +59,15 @@ function CompanyDashboardContent() {
   const { showToast } = useToast();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [userCompanies, setUserCompanies] = useState<UserCompany[]>([]);
+  const [userPendingRequests, setUserPendingRequests] = useState<UserCompany[]>([]);
   const [allCompanies, setAllCompanies] = useState<FeaturedStartup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [user, setUser] = useState<AuthUser | null>(null);
+  const [user, setUser] = useState<AuthUser & { profilePicture?: string | null; authName?: string | null } | null>(null);
   const [showAllCompanies, setShowAllCompanies] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [claimingCompanyId, setClaimingCompanyId] = useState<string | null>(null);
-  const [deletingCompanyId, setDeletingCompanyId] = useState<string | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<{ open: boolean; companyId: string | null }>({ open: false, companyId: null });
+  const [confirmCancel, setConfirmCancel] = useState<{ open: boolean; companyId: string | null; companyName: string | null }>({ open: false, companyId: null, companyName: null });
 
   useEffect(() => {
     checkAuth();
@@ -86,6 +86,8 @@ function CompanyDashboardContent() {
         name: authResult.user.name,
         avatar: authResult.user.avatar,
         isAdmin: authResult.isAdmin,
+        profilePicture: authResult.profilePicture,
+        authName: authResult.name,
       });
       await fetchCompanies(authResult.user.id, authResult.isAdmin);
     } catch (err) {
@@ -98,9 +100,18 @@ function CompanyDashboardContent() {
     setIsLoading(true);
     setError(null);
     try {
-      const { data: companiesData, error: companiesError } = await getUserCompanies(userId);
+      const [{ data: companiesData, error: companiesError }, { data: pendingData, error: pendingError }] = await Promise.all([
+        getUserCompanies(userId),
+        getUserPendingRequests(userId),
+      ]);
+      
       if (companiesError) throw companiesError;
       setUserCompanies(companiesData || []);
+      
+      if (pendingError) {
+        console.error("Failed to fetch pending requests:", pendingError);
+      }
+      setUserPendingRequests(pendingData || []);
 
       if (isAdmin) {
         const { data: allData, error: allError } = await getAllCompanies();
@@ -130,20 +141,35 @@ function CompanyDashboardContent() {
     }
   };
 
-  const handleCompanyCreated = async (newCompany: FeaturedStartup) => {
-    await checkAuth();
+  const handleCancelRequest = (companyId: string, companyName: string) => {
+    setConfirmCancel({ open: true, companyId, companyName });
   };
 
-  const handleDeleteCompany = async (companyId: string) => {
-    setDeletingCompanyId(companyId);
-    const { error } = await deleteCompany(companyId);
-    if (!error) {
-      showToast("Company deleted successfully", "success");
+  const confirmCancelRequest = async () => {
+    if (!user || !confirmCancel.companyId) return;
+    setClaimingCompanyId(confirmCancel.companyId);
+    try {
+      const { error } = await supabase
+        .from("user_company")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("company_id", confirmCancel.companyId)
+        .eq("status", "confirmation_pending");
+
+      if (error) throw error;
+      showToast("Request cancelled", "success");
+      setConfirmCancel({ open: false, companyId: null, companyName: null });
       await checkAuth();
-    } else {
-      showToast("Failed to delete company", "error");
+    } catch (err) {
+      console.error("Failed to cancel request:", err);
+      setError("Failed to cancel request");
+    } finally {
+      setClaimingCompanyId(null);
     }
-    setDeletingCompanyId(null);
+  };
+
+  const handleCompanyCreated = async (newCompany: FeaturedStartup) => {
+    await checkAuth();
   };
 
   const displayCompanies = user?.isAdmin && showAllCompanies ? allCompanies : userCompanies.map(uc => uc.company).filter(Boolean) as FeaturedStartup[];
@@ -169,7 +195,7 @@ function CompanyDashboardContent() {
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans">
-      <Navbar user={user ? { name: user.name, email: user.email, avatar: user.avatar } : undefined} />
+      <Navbar />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
@@ -260,10 +286,7 @@ function CompanyDashboardContent() {
                   isAdmin={isAdmin}
                   onClaim={() => handleClaimCompany(company.id)}
                   claiming={claimingCompanyId === company.id}
-                  onDelete={handleDeleteCompany}
-                  deletingId={deletingCompanyId}
-                  confirmDelete={confirmDelete}
-                  setConfirmDelete={setConfirmDelete}
+                  onCancelClick={() => handleCancelRequest(company.id, company.name)}
                 />
               );
             })}
@@ -276,17 +299,17 @@ function CompanyDashboardContent() {
         onClose={() => setIsModalOpen(false)}
         onCreated={handleCompanyCreated}
         userId={user?.id}
+        userCompanyIds={userCompanies.map(uc => uc.company_id).filter(Boolean) as string[]}
+        userPendingCompanyIds={userPendingRequests.map(ur => ur.company_id).filter(Boolean) as string[]}
       />
 
       <ConfirmationModal
-        isOpen={confirmDelete.open}
-        title="Delete Company"
-        message={`Are you sure you want to delete this company? This will also delete all associated events and opportunities. This action cannot be undone.`}
-        onConfirm={() => {
-          if (confirmDelete.companyId) handleDeleteCompany(confirmDelete.companyId);
-          setConfirmDelete({ open: false, companyId: null });
-        }}
-        onCancel={() => setConfirmDelete({ open: false, companyId: null })}
+        isOpen={confirmCancel.open}
+        title="Cancel Request"
+        message={`Are you sure you want to cancel your request to join "${confirmCancel.companyName}"?`}
+        confirmLabel="Cancel Request"
+        onConfirm={confirmCancelRequest}
+        onCancel={() => setConfirmCancel({ open: false, companyId: null, companyName: null })}
       />
     </div>
   );
@@ -298,23 +321,15 @@ function CompanyCard({
   isAdmin,
   onClaim,
   claiming,
-  onDelete,
-  deletingId,
-  confirmDelete,
-  setConfirmDelete,
+  onCancelClick,
 }: {
   company: FeaturedStartup;
   status?: string | null;
   isAdmin?: boolean;
   onClaim: () => void;
   claiming: boolean;
-  onDelete?: (id: string) => void;
-  deletingId?: string | null;
-  confirmDelete?: { open: boolean; companyId: string | null };
-  setConfirmDelete?: (val: { open: boolean; companyId: string | null }) => void;
+  onCancelClick?: () => void;
 }) {
-  const [showMenu, setShowMenu] = useState(false);
-
   const canAccess = status === "accepted" || status === "active";
   const isPendingConfirmation = status === "confirmation_pending";
   const isRejected = status === "rejected";
@@ -325,41 +340,10 @@ function CompanyCard({
       <div className="p-6">
         <div className="flex items-start justify-between mb-4">
           <div className="w-14 h-14 rounded-2xl bg-gray-50 border border-gray-100 flex items-center justify-center overflow-hidden">
-            {company.logo_url ? (
-              <img
-                src={company.logo_url}
-                alt={company.name}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <Building2 className="w-7 h-7 text-gray-300" />
-            )}
+            <CompanyLogo company={company} size="md" />
           </div>
           <div className="flex items-center gap-2">
             {status && <UserBadge status={status} />}
-            <div className="relative">
-              <button 
-                onClick={() => setShowMenu(!showMenu)}
-                className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
-              >
-                <MoreVertical className="w-5 h-5 text-gray-400" />
-              </button>
-              {showMenu && onDelete && setConfirmDelete && (
-                <div className="absolute right-0 top-full mt-1 w-40 bg-white rounded-xl shadow-lg border border-gray-200 py-1 z-10">
-                  <button
-                    onClick={() => {
-                      setShowMenu(false);
-                      setConfirmDelete({ open: true, companyId: company.id });
-                    }}
-                    disabled={deletingId === company.id}
-                    className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
-                  >
-                    {deletingId === company.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                    Delete
-                  </button>
-                </div>
-              )}
-            </div>
           </div>
         </div>
 
@@ -402,9 +386,21 @@ function CompanyCard({
         )}
 
         {isPendingConfirmation && (
-          <div className="inline-flex items-center gap-2 text-sm font-medium text-gray-500">
-            <AlertCircle className="w-4 h-4" />
-            Awaiting Approval
+          <div className="flex items-center gap-2">
+            <div className="inline-flex items-center gap-2 text-sm font-medium text-orange-600">
+              <AlertCircle className="w-4 h-4" />
+              Awaiting Approval
+            </div>
+            {onCancelClick && (
+              <button
+                onClick={onCancelClick}
+                disabled={claiming}
+                className="inline-flex items-center gap-1 text-sm font-medium text-red-600 hover:text-red-700 transition-colors disabled:opacity-50"
+              >
+                <XCircle className="w-4 h-4" />
+                Cancel
+              </button>
+            )}
           </div>
         )}
 
