@@ -165,7 +165,7 @@ export default function NewEventPage({ params }: Props) {
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                 placeholder="e.g. Tech Conference 2026"
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none"
+                className="input-base"
               />
             </div>
 
@@ -175,7 +175,7 @@ export default function NewEventPage({ params }: Props) {
                 <select
                   value={formData.format}
                   onChange={(e) => setFormData({ ...formData, format: e.target.value })}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none bg-white"
+                  className="input-base"
                 >
                   {EVENT_FORMATS.map((f) => <option key={f} value={f}>{f}</option>)}
                 </select>
@@ -185,7 +185,7 @@ export default function NewEventPage({ params }: Props) {
                 <select
                   value={formData.status}
                   onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none bg-white"
+                  className="input-base"
                 >
                   <option value="Upcoming">Upcoming</option>
                   <option value="Featured">Featured</option>
@@ -204,7 +204,7 @@ export default function NewEventPage({ params }: Props) {
                 value={formData.location}
                 onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                 placeholder="e.g. Kigali Convention Center"
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none"
+                className="input-base"
               />
             </div>
 
@@ -216,13 +216,13 @@ export default function NewEventPage({ params }: Props) {
                     type="date"
                     value={formData.start_date}
                     onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none"
+                    className="input-base"
                   />
                   <input
                     type="time"
                     value={formData.start_time}
                     onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none"
+                    className="input-base"
                   />
                 </div>
               </div>
@@ -241,13 +241,13 @@ export default function NewEventPage({ params }: Props) {
                       }
                       setFormData({ ...formData, end_date: newEndDate });
                     }}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none"
+                    className="input-base"
                   />
                   <input
                     type="time"
                     value={formData.end_time}
                     onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none"
+                    className="input-base"
                   />
                 </div>
                 {dateError && (
@@ -263,7 +263,7 @@ export default function NewEventPage({ params }: Props) {
               <select
                 value={formData.registration_type}
                 onChange={(e) => setFormData({ ...formData, registration_type: e.target.value as "platform" | "external" })}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none bg-white"
+                className="input-base"
               >
                 <option value="platform">Platform Registration</option>
                 <option value="external">External Link</option>
@@ -280,7 +280,7 @@ export default function NewEventPage({ params }: Props) {
                   value={formData.external_link}
                   onChange={(e) => setFormData({ ...formData, external_link: e.target.value })}
                   placeholder="https://..."
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none"
+                  className="input-base"
                 />
               </div>
             )}
@@ -292,7 +292,7 @@ export default function NewEventPage({ params }: Props) {
                 value={formData.tags}
                 onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
                 placeholder="Comma-separated tags"
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none"
+                className="input-base"
               />
             </div>
 
@@ -303,7 +303,7 @@ export default function NewEventPage({ params }: Props) {
                 onChange={(e) => setFormData({ ...formData, seo_description: e.target.value })}
                 rows={3}
                 placeholder="Description for search engines..."
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none resize-none"
+                className="input-base resize-none"
               />
             </div>
 

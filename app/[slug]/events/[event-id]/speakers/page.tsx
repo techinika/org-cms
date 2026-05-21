@@ -406,7 +406,7 @@ export default function EventSpeakersPage({ params }: Props) {
                       placeholder="Search speakers or companies..."
                       value={existingSearch}
                       onChange={(e) => setExistingSearch(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2.5 border rounded-xl"
+                      className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none transition-all"
                     />
                   </div>
                 </div>
@@ -564,7 +564,7 @@ function CreateSpeakerForm({
         <input
           value={newSpeaker.name}
           onChange={(e) => setNewSpeaker({ ...newSpeaker, name: e.target.value })}
-          className="w-full px-4 py-2.5 border rounded-xl"
+          className="w-full px-4 py-2.5 input-base"
           placeholder="Full name"
         />
       </div>
@@ -573,7 +573,7 @@ function CreateSpeakerForm({
         <input
           value={newSpeaker.title}
           onChange={(e) => setNewSpeaker({ ...newSpeaker, title: e.target.value })}
-          className="w-full px-4 py-2.5 border rounded-xl"
+          className="w-full px-4 py-2.5 input-base"
           placeholder="e.g. CEO, Tech Conf"
         />
       </div>
@@ -584,7 +584,7 @@ function CreateSpeakerForm({
           placeholder="Search companies..."
           value={companySearch}
           onChange={(e) => setCompanySearch(e.target.value)}
-          className="w-full px-4 py-2.5 border rounded-xl mb-2"
+          className="w-full px-4 py-2.5 input-base mb-2"
         />
         <div className="max-h-32 overflow-y-auto border rounded-xl">
           {companies.length === 0 ? (
@@ -617,7 +617,7 @@ function CreateSpeakerForm({
         <input
           value={newSpeaker.org_name}
           onChange={(e) => setNewSpeaker({ ...newSpeaker, org_name: e.target.value, company_id: "" })}
-          className="w-full px-4 py-2.5 border rounded-xl"
+          className="w-full px-4 py-2.5 input-base"
           placeholder="Organization name"
         />
       </div>
@@ -672,7 +672,7 @@ function CreateSpeakerForm({
         <textarea
           value={newSpeaker.bio}
           onChange={(e) => setNewSpeaker({ ...newSpeaker, bio: e.target.value })}
-          className="w-full px-4 py-2.5 border rounded-xl"
+          className="w-full px-4 py-2.5 input-base resize-none"
           rows={3}
           placeholder="Short bio..."
         />

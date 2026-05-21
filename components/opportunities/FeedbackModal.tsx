@@ -69,7 +69,7 @@ export default function FeedbackModal({
             <select
               value={status}
               onChange={(e) => handleStatusChange(e.target.value)}
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none bg-white"
+              className="input-base bg-white"
             >
               <option value="in_review">In Review</option>
               <option value="interview_pending">Interview Pending</option>
@@ -90,7 +90,7 @@ export default function FeedbackModal({
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               rows={8}
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none resize-none"
+              className="input-base resize-none"
               placeholder="Enter personalized message..."
             />
           </div>

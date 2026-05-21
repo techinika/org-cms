@@ -182,7 +182,7 @@ export default function EditEventPage({ params }: Props) {
                 type="text"
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none"
+                className="input-base"
               />
             </div>
 
@@ -192,7 +192,7 @@ export default function EditEventPage({ params }: Props) {
                 <select
                   value={formData.format}
                   onChange={(e) => setFormData({ ...formData, format: e.target.value })}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none bg-white"
+                  className="input-base"
                 >
                   {EVENT_FORMATS.map((f) => <option key={f} value={f}>{f}</option>)}
                 </select>
@@ -202,7 +202,7 @@ export default function EditEventPage({ params }: Props) {
                 <select
                   value={formData.status}
                   onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none bg-white"
+                  className="input-base"
                 >
                   <option value="Upcoming">Upcoming</option>
                   <option value="Featured">Featured</option>
@@ -220,13 +220,13 @@ export default function EditEventPage({ params }: Props) {
                     type="date"
                     value={formData.start_date}
                     onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none"
+                    className="input-base"
                   />
                   <input
                     type="time"
                     value={formData.start_time}
                     onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none"
+                    className="input-base"
                   />
                 </div>
               </div>
@@ -245,13 +245,13 @@ export default function EditEventPage({ params }: Props) {
                       }
                       setFormData({ ...formData, end_date: newEndDate });
                     }}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none"
+                    className="input-base"
                   />
                   <input
                     type="time"
                     value={formData.end_time}
                     onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none"
+                    className="input-base"
                   />
                 </div>
                 {dateError && (
@@ -268,7 +268,7 @@ export default function EditEventPage({ params }: Props) {
                 type="text"
                 value={formData.location}
                 onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none"
+                className="input-base"
               />
             </div>
 
@@ -279,7 +279,7 @@ export default function EditEventPage({ params }: Props) {
               <select
                 value={formData.registration_type}
                 onChange={(e) => setFormData({ ...formData, registration_type: e.target.value as "platform" | "external" })}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none bg-white"
+                className="input-base"
               >
                 <option value="platform">Platform Registration (register on-site)</option>
                 <option value="external">External Link (opens in new tab)</option>
@@ -296,7 +296,7 @@ export default function EditEventPage({ params }: Props) {
                   value={formData.external_link}
                   onChange={(e) => setFormData({ ...formData, external_link: e.target.value })}
                   placeholder="https://..."
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none"
+                  className="input-base"
                 />
               </div>
             )}

@@ -244,7 +244,7 @@ function CompanyDashboardContent() {
               placeholder="Search companies by name or location..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none transition-all"
+              className="pl-12 input-lg bg-white"
             />
           </div>
         </div>

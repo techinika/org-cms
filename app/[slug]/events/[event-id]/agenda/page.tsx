@@ -375,7 +375,7 @@ export default function EventAgendaPage({ params }: Props) {
                     <select
                       value={form.day_index}
                       onChange={(e) => setForm({ ...form, day_index: parseInt(e.target.value) })}
-                      className="w-full px-4 py-2.5 border rounded-xl"
+                      className="input-base"
                     >
                       {Array.from({ length: eventDays }, (_, i) => i + 1).map((d) => (
                         <option key={d} value={d}>
@@ -390,7 +390,7 @@ export default function EventAgendaPage({ params }: Props) {
                       type="number"
                       value={form.order_index}
                       onChange={(e) => setForm({ ...form, order_index: parseInt(e.target.value) })}
-                      className="w-full px-4 py-2.5 border rounded-xl"
+                      className="input-base"
                       placeholder="0"
                     />
                   </div>
@@ -401,7 +401,7 @@ export default function EventAgendaPage({ params }: Props) {
                   <input
                     value={form.session_title}
                     onChange={(e) => setForm({ ...form, session_title: e.target.value })}
-                    className="w-full px-4 py-2.5 border rounded-xl"
+                    className="input-base"
                     required
                   />
                 </div>
@@ -411,7 +411,7 @@ export default function EventAgendaPage({ params }: Props) {
                   <textarea
                     value={form.session_description}
                     onChange={(e) => setForm({ ...form, session_description: e.target.value })}
-                    className="w-full px-4 py-2.5 border rounded-xl"
+                    className="input-base resize-none"
                     rows={2}
                     placeholder="Brief description..."
                   />
@@ -426,7 +426,7 @@ export default function EventAgendaPage({ params }: Props) {
                       onChange={(e) => setForm({ ...form, session_start: e.target.value })}
                       min={eventMinDatetime}
                       max={eventMaxDatetime}
-                      className="w-full px-4 py-2.5 border rounded-xl"
+                      className="input-base"
                     />
                   </div>
                   <div>
@@ -437,7 +437,7 @@ export default function EventAgendaPage({ params }: Props) {
                       onChange={(e) => setForm({ ...form, session_end: e.target.value })}
                       min={eventMinDatetime}
                       max={eventMaxDatetime}
-                      className="w-full px-4 py-2.5 border rounded-xl"
+                      className="input-base"
                     />
                   </div>
                 </div>
@@ -447,7 +447,7 @@ export default function EventAgendaPage({ params }: Props) {
                   <input
                     value={form.location}
                     onChange={(e) => setForm({ ...form, location: e.target.value })}
-                    className="w-full px-4 py-2.5 border rounded-xl"
+                    className="input-base"
                     placeholder="e.g. Main Hall"
                   />
                 </div>
@@ -467,7 +467,7 @@ export default function EventAgendaPage({ params }: Props) {
                           setShowSpeakerDropdown(true);
                         }}
                         onFocus={() => setShowSpeakerDropdown(true)}
-                        className="w-full pl-10 pr-4 py-2.5 border rounded-xl"
+                        className="input-base pl-10"
                       />
                     </div>
                     {showSpeakerDropdown && (
@@ -517,7 +517,7 @@ export default function EventAgendaPage({ params }: Props) {
                   <input
                     value={form.speaker_relation}
                     onChange={(e) => setForm({ ...form, speaker_relation: e.target.value })}
-                    className="w-full px-4 py-2.5 border rounded-xl"
+                    className="input-base"
                     placeholder="e.g. Keynote Speaker"
                   />
                 </div>

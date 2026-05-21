@@ -205,7 +205,7 @@ export default function EventFaqsPage({ params }: Props) {
                 <input
                   value={form.question}
                   onChange={(e) => setForm({ ...form, question: e.target.value })}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none"
+                  className="input-base"
                   placeholder="e.g. What is the dress code?"
                 />
               </div>
@@ -215,7 +215,7 @@ export default function EventFaqsPage({ params }: Props) {
                   value={form.answer}
                   onChange={(e) => setForm({ ...form, answer: e.target.value })}
                   rows={4}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none resize-none"
+                  className="input-base resize-none"
                   placeholder="Provide a clear answer..."
                 />
               </div>

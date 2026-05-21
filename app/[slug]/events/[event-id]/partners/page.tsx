@@ -296,7 +296,7 @@ export default function EventPartnersPage({ params }: Props) {
                     placeholder="Search companies..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full px-4 py-2.5 border rounded-xl"
+                    className="input-base"
                   />
                 </div>
                 <div className="mb-4">
@@ -354,7 +354,7 @@ export default function EventPartnersPage({ params }: Props) {
                   <input
                     value={newCompany.name}
                     onChange={(e) => setNewCompany({ ...newCompany, name: e.target.value })}
-                    className="w-full px-4 py-2.5 border rounded-xl"
+                    className="input-base"
                     placeholder="Company name"
                   />
                 </div>
@@ -382,7 +382,7 @@ export default function EventPartnersPage({ params }: Props) {
                   <input
                     value={newCompany.logo_url}
                     onChange={(e) => setNewCompany({ ...newCompany, logo_url: e.target.value })}
-                    className="w-full px-4 py-2.5 border rounded-xl"
+                    className="input-base"
                     placeholder="https://..."
                   />
                 </div>
@@ -391,7 +391,7 @@ export default function EventPartnersPage({ params }: Props) {
                   <textarea
                     value={newCompany.description}
                     onChange={(e) => setNewCompany({ ...newCompany, description: e.target.value })}
-                    className="w-full px-4 py-2.5 border rounded-xl"
+                    className="input-base resize-none"
                     rows={3}
                     placeholder="Short description..."
                   />
