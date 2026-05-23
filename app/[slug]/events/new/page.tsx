@@ -46,7 +46,11 @@ export default function NewEventPage({ params }: Props) {
   const [dateError, setDateError] = useState<string | null>(null);
 
   const fetchCompany = async () => {
-    const { data } = await supabase.from("featured_startups").select("id").eq("slug", slug).single();
+    const { data } = await supabase
+      .from("featured_startups")
+      .select("id")
+      .eq("slug", slug)
+      .single();
     if (data) {
       setCompanyId(data.id);
     }
@@ -74,7 +78,9 @@ export default function NewEventPage({ params }: Props) {
     }
 
     if (formData.start_date && formData.end_date) {
-      const start = new Date(formData.start_date + (formData.start_time || "T00:00"));
+      const start = new Date(
+        formData.start_date + (formData.start_time || "T00:00"),
+      );
       const end = new Date(formData.end_date + (formData.end_time || "T00:00"));
       if (end < start) {
         setDateError("End date/time cannot be before start date/time");
@@ -83,33 +89,52 @@ export default function NewEventPage({ params }: Props) {
     }
 
     setIsSaving(true);
-    const eventSlug = formData.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") + "-" + Date.now().toString(36);
+    const eventSlug =
+      formData.title
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)/g, "") +
+      "-" +
+      Date.now().toString(36);
 
     const startDateTime = formData.start_date
-      ? new Date(formData.start_date + (formData.start_time ? "T" + formData.start_time : "T00:00")).toISOString()
+      ? new Date(
+          formData.start_date +
+            (formData.start_time ? "T" + formData.start_time : "T00:00"),
+        ).toISOString()
       : null;
     const endDateTime = formData.end_date
-      ? new Date(formData.end_date + (formData.end_time ? "T" + formData.end_time : "T00:00")).toISOString()
+      ? new Date(
+          formData.end_date +
+            (formData.end_time ? "T" + formData.end_time : "T00:00"),
+        ).toISOString()
       : null;
 
-    const { data, error: insertError } = await supabase.from("events").insert({
-      title: formData.title,
-      slug: eventSlug,
-      location: formData.location || null,
-      format: formData.format,
-      status: formData.status,
-      publish_status: "draft",
-      start_date: startDateTime,
-      end_date: endDateTime,
-      seo_description: formData.seo_description || null,
-      full_description: formData.full_description || null,
-      tags: formData.tags || null,
-      external_link: formData.registration_type === "external" ? formData.external_link || null : "register",
-      organizer_id: companyId,
-      is_featured: false,
-      views: 0,
-      lang: "en",
-    }).select().single();
+    const { data, error: insertError } = await supabase
+      .from("events")
+      .insert({
+        title: formData.title,
+        slug: eventSlug,
+        location: formData.location || null,
+        format: formData.format,
+        status: formData.status,
+        publish_status: "draft",
+        start_date: startDateTime,
+        end_date: endDateTime,
+        seo_description: formData.seo_description || null,
+        full_description: formData.full_description || null,
+        tags: formData.tags || null,
+        external_link:
+          formData.registration_type === "external"
+            ? formData.external_link || null
+            : "register",
+        organizer_id: companyId,
+        is_featured: false,
+        views: 0,
+        lang: "english",
+      })
+      .select()
+      .single();
 
     if (insertError) {
       setError("Failed to create event");
@@ -131,12 +156,14 @@ export default function NewEventPage({ params }: Props) {
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
-      
+
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <Breadcrumb items={[
-          { label: "Events", href: `/${slug}/events` },
-          { label: "Create Event", href: `/${slug}/events/new` },
-        ]} />
+        <Breadcrumb
+          items={[
+            { label: "Events", href: `/${slug}/events` },
+            { label: "Create Event", href: `/${slug}/events/new` },
+          ]}
+        />
 
         <div className="bg-white rounded-2xl border border-gray-200 p-6">
           <div className="flex items-center gap-4 mb-8">
@@ -144,8 +171,12 @@ export default function NewEventPage({ params }: Props) {
               <Calendar className="w-6 h-6 text-[#3182ce]" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-gray-900">Create New Event</h1>
-              <p className="text-sm text-gray-500">Add a new event to your company</p>
+              <h1 className="text-xl font-bold text-gray-900">
+                Create New Event
+              </h1>
+              <p className="text-sm text-gray-500">
+                Add a new event to your company
+              </p>
             </div>
           </div>
 
@@ -163,7 +194,9 @@ export default function NewEventPage({ params }: Props) {
               <input
                 type="text"
                 value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, title: e.target.value })
+                }
                 placeholder="e.g. Tech Conference 2026"
                 className="input-base"
               />
@@ -171,20 +204,32 @@ export default function NewEventPage({ params }: Props) {
 
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Format</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Format
+                </label>
                 <select
                   value={formData.format}
-                  onChange={(e) => setFormData({ ...formData, format: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, format: e.target.value })
+                  }
                   className="input-base"
                 >
-                  {EVENT_FORMATS.map((f) => <option key={f} value={f}>{f}</option>)}
+                  {EVENT_FORMATS.map((f) => (
+                    <option key={f} value={f}>
+                      {f}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Status</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Status
+                </label>
                 <select
                   value={formData.status}
-                  onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, status: e.target.value })
+                  }
                   className="input-base"
                 >
                   <option value="Upcoming">Upcoming</option>
@@ -202,7 +247,9 @@ export default function NewEventPage({ params }: Props) {
               <input
                 type="text"
                 value={formData.location}
-                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, location: e.target.value })
+                }
                 placeholder="e.g. Kigali Convention Center"
                 className="input-base"
               />
@@ -210,31 +257,43 @@ export default function NewEventPage({ params }: Props) {
 
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Start Date & Time</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Start Date & Time
+                </label>
                 <div className="grid grid-cols-2 gap-2">
                   <input
                     type="date"
                     value={formData.start_date}
-                    onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, start_date: e.target.value })
+                    }
                     className="input-base"
                   />
                   <input
                     type="time"
                     value={formData.start_time}
-                    onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, start_time: e.target.value })
+                    }
                     className="input-base"
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">End Date & Time</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  End Date & Time
+                </label>
                 <div className="grid grid-cols-2 gap-2">
                   <input
                     type="date"
                     value={formData.end_date}
                     onChange={(e) => {
                       const newEndDate = e.target.value;
-                      if (formData.start_date && newEndDate && newEndDate < formData.start_date) {
+                      if (
+                        formData.start_date &&
+                        newEndDate &&
+                        newEndDate < formData.start_date
+                      ) {
                         setDateError("End date cannot be before start date");
                       } else {
                         setDateError(null);
@@ -246,7 +305,9 @@ export default function NewEventPage({ params }: Props) {
                   <input
                     type="time"
                     value={formData.end_time}
-                    onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, end_time: e.target.value })
+                    }
                     className="input-base"
                   />
                 </div>
@@ -262,7 +323,14 @@ export default function NewEventPage({ params }: Props) {
               </label>
               <select
                 value={formData.registration_type}
-                onChange={(e) => setFormData({ ...formData, registration_type: e.target.value as "platform" | "external" })}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    registration_type: e.target.value as
+                      | "platform"
+                      | "external",
+                  })
+                }
                 className="input-base"
               >
                 <option value="platform">Platform Registration</option>
@@ -278,7 +346,9 @@ export default function NewEventPage({ params }: Props) {
                 <input
                   type="url"
                   value={formData.external_link}
-                  onChange={(e) => setFormData({ ...formData, external_link: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, external_link: e.target.value })
+                  }
                   placeholder="https://..."
                   className="input-base"
                 />
@@ -286,21 +356,29 @@ export default function NewEventPage({ params }: Props) {
             )}
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Tags</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Tags
+              </label>
               <input
                 type="text"
                 value={formData.tags}
-                onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, tags: e.target.value })
+                }
                 placeholder="Comma-separated tags"
                 className="input-base"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">SEO Description</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                SEO Description
+              </label>
               <textarea
                 value={formData.seo_description}
-                onChange={(e) => setFormData({ ...formData, seo_description: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, seo_description: e.target.value })
+                }
                 rows={3}
                 placeholder="Description for search engines..."
                 className="input-base resize-none"
@@ -308,10 +386,14 @@ export default function NewEventPage({ params }: Props) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Full Description</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Full Description
+              </label>
               <RichTextEditor
                 content={formData.full_description}
-                onChange={(html) => setFormData({ ...formData, full_description: html })}
+                onChange={(html) =>
+                  setFormData({ ...formData, full_description: html })
+                }
                 placeholder="Detailed event description..."
               />
             </div>
@@ -322,7 +404,11 @@ export default function NewEventPage({ params }: Props) {
                 disabled={isSaving}
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 bg-[#3182ce] text-white rounded-xl font-medium hover:bg-[#2c5cb8] transition-colors disabled:opacity-50"
               >
-                {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                {isSaving ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <Save className="w-5 h-5" />
+                )}
                 Create Event
               </button>
             </div>

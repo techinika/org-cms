@@ -19,10 +19,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={`${workSans.variable}`}
-    >
+    <html lang="en" className={`${workSans.variable}`}>
       <body>
         <ToastProvider>{children}</ToastProvider>
       </body>
