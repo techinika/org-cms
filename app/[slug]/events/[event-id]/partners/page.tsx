@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, use, useRef } from "react";
 import Link from "next/link";
 import {
   Building2,
@@ -9,6 +9,7 @@ import {
   Plus,
   Trash2,
   Pencil,
+  Upload,
 } from "lucide-react";
 import { Event, FeaturedStartup } from "@/types/company";
 import { getEventById } from "@/lib/supabase";
@@ -46,20 +47,19 @@ export default function EventPartnersPage({ params }: Props) {
   const [saving, setSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showCreateNew, setShowCreateNew] = useState(false);
-  const [newCompany, setNewCompany] = useState({ name: "", description: "", logo_url: "" });
+  const [newCompany, setNewCompany] = useState({ name: "", description: "", logo_url: "", image_ref: "" });
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingPartner, setEditingPartner] = useState<EventCompany | null>(null);
   const [editRelationship, setEditRelationship] = useState("partner");
 
-  useEffect(() => {
-    checkAuth();
-  }, [slug, eventId]);
-
   const checkAuth = async () => {
     const authResult = await checkAuthClient();
     if (!authResult.authenticated || !authResult.user) {
-      window.location.href = getAuthRedirectUrl();
+      window.location.replace(getAuthRedirectUrl());
       return;
     }
     fetchData();
@@ -105,6 +105,10 @@ export default function EventPartnersPage({ params }: Props) {
     setIsLoading(false);
   };
 
+  useEffect(() => {
+    checkAuth();
+  }, [slug, eventId]);
+
   const handleAddPartner = async () => {
     if (!selectedCompany) return;
     setSaving(true);
@@ -127,6 +131,36 @@ export default function EventPartnersPage({ params }: Props) {
     }
   };
 
+  const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setLogoPreview(URL.createObjectURL(file));
+    setIsUploading(true);
+    try {
+      const result = await fetch("/api/upload-image", {
+        method: "POST",
+        body: (() => {
+          const fd = new FormData();
+          fd.append("file", file);
+          fd.append("folder", "companies");
+          return fd;
+        })(),
+      }).then(r => r.json());
+
+      if (result.asset_id) {
+        setNewCompany((prev) => ({ ...prev, logo_url: result.url, image_ref: result.asset_id }));
+      } else {
+        throw new Error(result.error || "Upload failed");
+      }
+    } catch (error) {
+      console.error("Failed to upload logo:", error);
+      showToast("Failed to upload logo", "error");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const handleCreateCompany = async () => {
     if (!newCompany.name) return;
     setSaving(true);
@@ -135,6 +169,7 @@ export default function EventPartnersPage({ params }: Props) {
       name: newCompany.name,
       description: newCompany.description || "Partner for event",
       logo_url: newCompany.logo_url || null,
+      image_ref: newCompany.image_ref || null,
       slug: newCompany.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") + "-" + Date.now().toString(36),
       claimed: false,
     }).select().single();
@@ -149,7 +184,8 @@ export default function EventPartnersPage({ params }: Props) {
       });
       showToast("Company created and added", "success");
       setShowAddModal(false);
-      setNewCompany({ name: "", description: "", logo_url: "" });
+      setNewCompany({ name: "", description: "", logo_url: "", image_ref: "" });
+      setLogoPreview(null);
       setShowCreateNew(false);
       fetchData();
     }
@@ -284,7 +320,7 @@ export default function EventPartnersPage({ params }: Props) {
 
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50" onClick={() => { setShowAddModal(false); setShowCreateNew(false); }} />
+          <div className="absolute inset-0 bg-black/50" onClick={() => { setShowAddModal(false); setShowCreateNew(false); setLogoPreview(null); }} />
           <div className="relative bg-white rounded-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
             <h2 className="text-lg font-semibold mb-4">{showCreateNew ? "Create Company" : "Add Partner"}</h2>
             
@@ -378,13 +414,35 @@ export default function EventPartnersPage({ params }: Props) {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Logo URL</label>
-                  <input
-                    value={newCompany.logo_url}
-                    onChange={(e) => setNewCompany({ ...newCompany, logo_url: e.target.value })}
-                    className="input-base"
-                    placeholder="https://..."
-                  />
+                  <label className="block text-sm font-medium mb-1">Logo</label>
+                  <div className="flex items-center gap-4">
+                    <div
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-16 h-16 rounded-xl border-2 border-dashed border-gray-300 hover:border-[#3182ce] hover:bg-blue-50 transition-all cursor-pointer flex items-center justify-center overflow-hidden bg-gray-50"
+                    >
+                      {logoPreview ? (
+                        <img
+                          src={logoPreview}
+                          alt="Logo preview"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : isUploading ? (
+                        <Loader2 className="w-6 h-6 text-[#3182ce] animate-spin" />
+                      ) : (
+                        <Upload className="w-6 h-6 text-gray-400" />
+                      )}
+                    </div>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleLogoChange}
+                    />
+                    <span className="text-xs text-gray-500">
+                      Upload a logo for the company
+                    </span>
+                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Description</label>
@@ -401,14 +459,14 @@ export default function EventPartnersPage({ params }: Props) {
             <div className="flex gap-3 mt-6">
               {showCreateNew && (
                 <button
-                  onClick={() => setShowCreateNew(false)}
+                  onClick={() => { setShowCreateNew(false); setLogoPreview(null); setNewCompany({ name: "", description: "", logo_url: "", image_ref: "" }); }}
                   className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200"
                 >
                   Back
                 </button>
               )}
               <button
-                onClick={() => setShowAddModal(false)}
+                onClick={() => { setShowAddModal(false); setLogoPreview(null); }}
                 className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200"
               >
                 Cancel

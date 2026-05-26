@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect, useRef } from "react";
 import {
   Search,
   ChevronLeft,
@@ -13,6 +14,7 @@ import { ApplicantScore } from "@/lib/ai";
 import { getProgressLabel, getProgressColor } from "./shared";
 
 const APPLICATIONS_PER_PAGE = 50;
+const SEARCH_DEBOUNCE_MS = 300;
 
 interface ApplicationListProps {
   applications: Application[];
@@ -47,6 +49,27 @@ export default function ApplicationList({
   onPageChange,
   isLoading,
 }: ApplicationListProps) {
+  const [localSearch, setLocalSearch] = useState(searchQuery);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    setLocalSearch(searchQuery);
+  }, [searchQuery]);
+
+  const handleSearchChange = (value: string) => {
+    setLocalSearch(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setSearchQuery(value);
+    }, SEARCH_DEBOUNCE_MS);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
+
   return (
     <div className="mb-8">
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
@@ -55,8 +78,8 @@ export default function ApplicationList({
           <input
             type="text"
             placeholder="Search by name, email, location..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            value={localSearch}
+            onChange={(e) => handleSearchChange(e.target.value)}
             className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none transition-all"
           />
         </div>

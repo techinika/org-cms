@@ -1,4 +1,6 @@
 // types/company.ts
+export type OpportunityTier = "free" | "basic" | "advanced";
+
 export interface FeaturedStartup {
   id: string;
   created_at: string;
@@ -25,6 +27,11 @@ export interface FeaturedStartup {
   slug: string | null;
   claimed?: boolean | null;
   is_published?: boolean | null;
+  opportunity_tier?: OpportunityTier;
+  opportunity_listings_purchased?: number;
+  opportunity_listings_used?: number;
+  subscription_started_at?: string | null;
+  subscription_expires_at?: string | null;
 }
 
 export type UserCompanyRole = "creator" | "manager" | "events_manager" | "opportunities_manager" | "employee";
@@ -173,6 +180,18 @@ export interface EventRegistration {
   checked_in: boolean | null;
   checked_in_at: string | null;
   answers: Record<string, unknown>;
+  created_at: string;
+}
+
+export type EventInvoiceStatus = "pending" | "paid" | "cancelled" | "refunded";
+
+export interface EventInvoice {
+  id: string;
+  registration_id: string;
+  amount: number;
+  currency: string;
+  status: EventInvoiceStatus;
+  payment_link: string | null;
   created_at: string;
 }
 

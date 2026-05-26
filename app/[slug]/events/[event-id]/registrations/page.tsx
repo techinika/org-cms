@@ -65,14 +65,10 @@ export default function EventRegistrationsPage({ params }: Props) {
   const [scanResult, setScanResult] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
 
-  useEffect(() => {
-    checkAuth();
-  }, [slug, eventId]);
-
   const checkAuth = async () => {
     const authResult = await checkAuthClient();
-if (!authResult.authenticated || !authResult.user) {
-      window.location.href = getAuthRedirectUrl();
+    if (!authResult.authenticated || !authResult.user) {
+      window.location.replace(getAuthRedirectUrl());
       return;
     }
     fetchData();
@@ -91,10 +87,14 @@ if (!authResult.authenticated || !authResult.user) {
     setRegistrations(regData || []);
 
     const { data: ticketData } = await getEventTickets(eventId);
-    setTickets(ticketData?.map((t: any) => ({ id: t.id, name: t.name })) || []);
+    setTickets(ticketData?.map((t: { id: string; name: string }) => ({ id: t.id, name: t.name })) || []);
 
     setIsLoading(false);
   };
+
+  useEffect(() => {
+    checkAuth();
+  }, [slug, eventId]);
 
   const updateStatus = async (regId: string, newStatus: string) => {
     const { error } = await updateEventRegistration(regId, { status: newStatus });

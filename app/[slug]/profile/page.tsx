@@ -14,6 +14,7 @@ import {
   Save,
   Tags,
   FileText,
+  ArrowRight,
 } from "lucide-react";
 import { FeaturedStartup, Industry } from "@/types/company";
 import { getCompanyBySlug, updateCompany, removeUserCompany, getAllIndustries, getCompanyIndustries, setCompanyIndustries } from "@/lib/supabase";
@@ -36,6 +37,8 @@ export default function CompanyProfilePage({
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [user, setUser] = useState<{
     name: string;
     email: string;
@@ -43,8 +46,6 @@ export default function CompanyProfilePage({
     avatar?: string;
     profilePicture?: string | null;
   } | null>(null);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -58,24 +59,24 @@ export default function CompanyProfilePage({
   const [selectedIndustryIds, setSelectedIndustryIds] = useState<string[]>([]);
 
   useEffect(() => {
-    checkAuth();
+    const checkAuthAndFetch = async () => {
+      const authResult = await checkAuthClient();
+      if (!authResult.authenticated || !authResult.user) {
+        window.location.replace(getAuthRedirectUrl());
+        return;
+      }
+      setUser({
+        id: authResult.user.id,
+        name: authResult.user.name,
+        email: authResult.user.email,
+        avatar: authResult.user.avatar,
+        profilePicture: authResult.profilePicture,
+      });
+      await fetchCompany();
+    };
+    
+    checkAuthAndFetch();
   }, [slug]);
-
-  const checkAuth = async () => {
-    const authResult = await checkAuthClient();
-    if (!authResult.authenticated || !authResult.user) {
-      window.location.href = getAuthRedirectUrl();
-      return;
-    }
-    setUser({
-      id: authResult.user.id,
-      name: authResult.user.name,
-      email: authResult.user.email,
-      avatar: authResult.user.avatar,
-      profilePicture: authResult.profilePicture,
-    });
-    fetchCompany();
-  };
 
   const fetchCompany = async () => {
     setIsLoading(true);
@@ -270,16 +271,128 @@ export default function CompanyProfilePage({
             </div>
 
             <div className="grid gap-6">
-              {company.description && (
-                <div>
-                  <h2 className="text-sm font-semibold text-gray-900 mb-2">
-                    About
-                  </h2>
-                  <p className="text-gray-600 leading-relaxed">
-                    {company.description}
+    {company.description && (
+      <div>
+        <h2 className="text-sm font-semibold text-gray-900 mb-2">
+          About
+        </h2>
+        <p className="text-gray-600 leading-relaxed">
+          {company.description}
+        </p>
+      </div>
+    )}
+    
+    {/* Subscription Analytics */}
+    {company.opportunity_tier && (
+      <div className="mt-8">
+        <h2 className="text-sm font-semibold text-gray-900 mb-2">
+          Subscription Analytics
+        </h2>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
+            <h3 className="text-xs font-medium text-gray-500 mb-2">Current Tier</h3>
+            <p className={`text-lg font-medium ${company.opportunity_tier === "advanced" ? "text-green-600" : company.opportunity_tier === "basic" ? "text-blue-600" : "text-gray-500"} capitalize`}>
+              {company.opportunity_tier} tier
+            </p>
+          </div>
+          
+          <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
+            <h3 className="text-xs font-medium text-gray-500 mb-2">Listings Usage</h3>
+            <div className="space-y-2">
+              {company.opportunity_tier === "basic" && (
+                <>
+                  <p className="text-sm flex justify-between">
+                    <span>Used:</span>
+                    <span className="font-medium">{company.opportunity_listings_used || 0}</span>
                   </p>
-                </div>
+                  <p className="text-sm flex justify-between">
+                    <span>Available:</span>
+                    <span className="font-medium">
+                      {Math.max(0, (company.opportunity_listings_purchased || 0) - (company.opportunity_listings_used || 0))}
+                    </span>
+                  </p>
+                  <p className="text-sm flex justify-between">
+                    <span>Purchased:</span>
+                    <span className="font-medium">{company.opportunity_listings_purchased || 0}</span>
+                  </p>
+                </>
               )}
+              {company.opportunity_tier === "advanced" && (
+                <p className="text-sm text-green-600">
+                  Unlimited listings
+                </p>
+              )}
+              {company.opportunity_tier === "free" && (
+                <p className="text-sm text-red-500">
+                  Upgrade to access listings
+                </p>
+              )}
+            </div>
+          </div>
+          
+          <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
+            <h3 className="text-xs font-medium text-gray-500 mb-2">Subscription Status</h3>
+            {company.subscription_expires_at ? (
+              <>
+                <p className="text-sm flex justify-between">
+                  <span>Expires:</span>
+                  <span className="font-medium">
+                    {new Date(company.subscription_expires_at).toLocaleDateString()}
+                  </span>
+                </p>
+                <p className="text-sm flex justify-between">
+                  <span>Status:</span>
+                  <span className={`font-medium ${new Date(company.subscription_expires_at) > new Date() ? "text-green-600" : "text-red-500"}`}>
+                    {new Date(company.subscription_expires_at) > new Date() ? "Active" : "Expired"}
+                  </span>
+                </p>
+              </>
+            ) : (
+                <p className="text-sm text-gray-500">
+                  No active subscription
+                </p>
+              )}
+          </div>
+          
+          {company.opportunity_tier !== "advanced" && (
+            <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 pt-6">
+              <h3 className="text-xs font-medium text-gray-500 mb-2">Upgrade Benefits</h3>
+              {company.opportunity_tier === "free" ? (
+                <>
+                  <p className="text-sm mb-2">Upgrade to Basic for:</p>
+                  <ul className="list-disc list-inside text-sm space-y-1">
+                    <li>5 opportunity listings</li>
+                    <li>Access to applications dashboard</li>
+                    <li>AI applicant comparison</li>
+                    <li>Email notifications</li>
+                  </ul>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm mb-2">Upgrade to Advanced for:</p>
+                  <ul className="list-disc list-inside text-sm space-y-1">
+                    <li>Unlimited opportunity listings</li>
+                    <li>Full access to applications dashboard</li>
+                    <li>AI applicant comparison</li>
+                    <li>Email notifications</li>
+                    <li>Priority support</li>
+                  </ul>
+                </>
+              )}
+              <div className="mt-4">
+                <Link
+                  href={`/${slug}/opportunities`}
+                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 bg-[#3182ce] text-white rounded-xl font-medium text-sm hover:bg-[#2c5cb8] transition-colors"
+                >
+                  Upgrade Subscription
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    )}
 
               <div className="grid sm:grid-cols-2 gap-4">
                 {company.location && (

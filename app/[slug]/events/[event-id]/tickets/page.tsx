@@ -45,14 +45,10 @@ export default function EventTicketsPage({ params }: Props) {
     is_active: true,
   });
 
-  useEffect(() => {
-    checkAuth();
-  }, [slug, eventId]);
-
   const checkAuth = async () => {
     const authResult = await checkAuthClient();
     if (!authResult.authenticated || !authResult.user) {
-      window.location.href = getAuthRedirectUrl();
+      window.location.replace(getAuthRedirectUrl());
       return;
     }
     fetchData();
@@ -67,6 +63,10 @@ export default function EventTicketsPage({ params }: Props) {
     setTickets(ticketsData || []);
     setIsLoading(false);
   };
+
+  useEffect(() => {
+    checkAuth();
+  }, [slug, eventId]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -109,10 +109,6 @@ export default function EventAgendaPage({ params }: Props) {
     fetchData();
   }
 
-  useEffect(() => {
-    checkAuth();
-  }, [slug, eventId]);
-
   async function fetchData() {
     setIsLoading(true);
     setError(null);
@@ -155,6 +151,10 @@ export default function EventAgendaPage({ params }: Props) {
       setIsLoading(false);
     }
   }
+
+  useEffect(() => {
+    checkAuth();
+  }, [slug, eventId]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();

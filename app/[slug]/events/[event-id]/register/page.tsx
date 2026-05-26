@@ -47,7 +47,7 @@ export default function EventRegisterPage({ params }: Props) {
     const { checkAuthClient, getAuthRedirectUrl } = await import("@/lib/auth-client");
     const authResult = await checkAuthClient();
     if (!authResult.authenticated || !authResult.user) {
-      window.location.href = getAuthRedirectUrl();
+      window.location.replace(getAuthRedirectUrl());
       return;
     }
     setUserId(authResult.user.id);
@@ -103,8 +103,8 @@ export default function EventRegisterPage({ params }: Props) {
 
       if (error) throw error;
       setSubmitted(true);
-    } catch (err: any) {
-      setSubmitError(err.message || "Registration failed");
+    } catch (err: unknown) {
+      setSubmitError(err instanceof Error ? err.message : "Registration failed");
     } finally {
       setRegistering(false);
     }

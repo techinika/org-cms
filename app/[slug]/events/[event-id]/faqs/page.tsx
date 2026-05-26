@@ -32,10 +32,6 @@ export default function EventFaqsPage({ params }: Props) {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [form, setForm] = useState({ question: "", answer: "" });
 
-  useEffect(() => {
-    checkAuth();
-  }, [slug, eventId]);
-
   async function checkAuth() {
     const authResult = await checkAuthClient();
     if (!authResult.authenticated || !authResult.user) {
@@ -61,6 +57,10 @@ export default function EventFaqsPage({ params }: Props) {
       setIsLoading(false);
     }
   }
+
+  useEffect(() => {
+    checkAuth();
+  }, [slug, eventId]);
 
   const saveFaqs = async (updatedFaqs: { question: string; answer: string }[]) => {
     setSaving(true);

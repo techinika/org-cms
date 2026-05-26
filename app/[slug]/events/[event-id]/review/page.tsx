@@ -67,19 +67,6 @@ export default function EventReviewPage({ params }: Props) {
   const [showUnpublishModal, setShowUnpublishModal] = useState(false);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
-  useEffect(() => {
-    checkAuth();
-  }, [slug, eventId]);
-
-  const checkAuth = async () => {
-    const authResult = await checkAuthClient();
-    if (!authResult.authenticated || !authResult.user) {
-      window.location.href = getAuthRedirectUrl();
-      return;
-    }
-    fetchAllData();
-  };
-
   const fetchAllData = async () => {
     setIsLoading(true);
     const { data: eventData } = await getEventById(eventId);
@@ -116,6 +103,21 @@ export default function EventReviewPage({ params }: Props) {
 
     setIsLoading(false);
   };
+
+  const checkAuth = async () => {
+    const authResult = await checkAuthClient();
+    if (!authResult.authenticated || !authResult.user) {
+      window.location.replace(getAuthRedirectUrl());
+      return;
+    }
+    await fetchAllData();
+  };
+
+  useEffect(() => {
+    (async () => {
+      await checkAuth();
+    })();
+  }, [slug, eventId]);
 
   const validateEvent = (): string[] => {
     const errors: string[] = [];

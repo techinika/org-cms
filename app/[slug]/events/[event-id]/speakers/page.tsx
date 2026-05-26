@@ -96,14 +96,10 @@ export default function EventSpeakersPage({ params }: Props) {
   const [companySearch, setCompanySearch] = useState("");
   const [editCompanySearch, setEditCompanySearch] = useState("");
 
-  useEffect(() => {
-    checkAuth();
-  }, [slug, eventId]);
-
   const checkAuth = async () => {
     const authResult = await checkAuthClient();
     if (!authResult.authenticated || !authResult.user) {
-      window.location.href = getAuthRedirectUrl();
+      window.location.replace(getAuthRedirectUrl());
       return;
     }
     fetchData();
@@ -135,6 +131,10 @@ export default function EventSpeakersPage({ params }: Props) {
 
     setIsLoading(false);
   };
+
+  useEffect(() => {
+    checkAuth();
+  }, [slug, eventId]);
 
   const uploadPhoto = async (file: File): Promise<{ asset_id: string; url: string } | null> => {
     setUploading(true);

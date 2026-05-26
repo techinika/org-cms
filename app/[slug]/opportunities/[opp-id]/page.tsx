@@ -6,91 +6,26 @@ import Link from "next/link";
 import {
   Briefcase,
   Loader2,
-  ArrowLeft,
-  MapPin,
-  Globe,
-  Mail,
-  Clock,
-  Users,
-  Save,
   Trash2,
-  DollarSign,
-  MessageSquare,
-  ArrowRight,
-  Sparkles,
-  CheckCircle,
-  XCircle,
   ExternalLink,
   MousePointerClick,
+  Users,
+  Pencil,
+  ArrowRight,
+  DollarSign,
 } from "lucide-react";
-import {
-  Opportunity,
-  OPPORTUNITY_TYPES,
-  WORK_MODES,
-  EMPLOYMENT_TYPES,
-} from "@/types/company";
+import { Opportunity } from "@/types/company";
 import {
   getOpportunityById,
   updateOpportunity,
-  getOpportunityApplications,
   deleteOpportunity,
-  updateApplicationFeedback,
+  getCompanyBySlug,
 } from "@/lib/supabase";
-import { compareApplicants, ApplicantScore } from "@/lib/ai";
 import { checkAuthClient, getAuthRedirectUrl } from "@/lib/auth-client";
 import Navbar from "@/components/parts/Navbar";
 import Breadcrumb from "@/components/parts/Breadcrumb";
-import RichTextEditor from "@/components/parts/RichTextEditor";
-import ApplicationList from "@/components/opportunities/ApplicationList";
-import ApplicationDetailModal from "@/components/opportunities/ApplicationDetailModal";
-import FeedbackModal from "@/components/opportunities/FeedbackModal";
-import AIScoreModal from "@/components/opportunities/AIScoreModal";
-import { getDefaultEmailMessage } from "@/components/opportunities/shared";
 import ConfirmationModal from "@/components/ui/ConfirmationModal";
 import { useToast } from "@/components/ui/Toast";
-
-const APPLICATION_PROGRESS_STAGES = [
-  { key: "pending", label: "Pending", color: "bg-yellow-100 text-yellow-700" },
-  { key: "in_review", label: "In Review", color: "bg-blue-100 text-blue-700" },
-  {
-    key: "interview_pending",
-    label: "Interview Pending",
-    color: "bg-purple-100 text-purple-700",
-  },
-  {
-    key: "technical_exam_pending",
-    label: "Technical Exam",
-    color: "bg-indigo-100 text-indigo-700",
-  },
-  {
-    key: "contract_signing_pending",
-    label: "Contract Signing",
-    color: "bg-orange-100 text-orange-700",
-  },
-  { key: "hired", label: "Hired", color: "bg-green-100 text-green-700" },
-  {
-    key: "started_job",
-    label: "Started Job",
-    color: "bg-emerald-100 text-emerald-700",
-  },
-  {
-    key: "started_internship",
-    label: "Started Internship",
-    color: "bg-emerald-100 text-emerald-700",
-  },
-  { key: "rejected", label: "Rejected", color: "bg-red-100 text-red-700" },
-  {
-    key: "not_proceeding",
-    label: "Not Proceeding",
-    color: "bg-gray-100 text-gray-700",
-  },
-  { key: "quit", label: "Quit", color: "bg-gray-100 text-gray-700" },
-];
-
-function getProgressLabel(status: string | null | undefined): string {
-  const stage = APPLICATION_PROGRESS_STAGES.find((s) => s.key === status);
-  return stage?.label || "Pending";
-}
 
 export default function OpportunityPage({
   params,
@@ -100,44 +35,20 @@ export default function OpportunityPage({
   const { slug, "opp-id": oppId } = use(params);
   const { showToast } = useToast();
   const [opportunity, setOpportunity] = useState<Opportunity | null>(null);
-  const [applications, setApplications] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [userEmail, setUserEmail] = useState<string | undefined>(undefined);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [searchQuery, setSearchQuery] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [selectedApp, setSelectedApp] = useState<any>(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalApps, setTotalApps] = useState(0);
-  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
-  const [feedbackStatus, setFeedbackStatus] = useState("in_review");
-  const [feedbackMessage, setFeedbackMessage] = useState("");
-  const [isSendingFeedback, setIsSendingFeedback] = useState(false);
-  const [isAIScoreLoading, setIsAIScoreLoading] = useState(false);
-  const [applicantScores, setApplicantScores] = useState<ApplicantScore[]>([]);
-  const [showAIScoreModal, setShowAIScoreModal] = useState(false);
-  const [formData, setFormData] = useState({
-    title: "",
-    description: "",
-    full_description: "",
-    requirements: "",
-    benefits: "",
-    type: "",
-    location: "",
-    salary: "",
-    application_link: "",
-    contact_email: "",
-    work_mode: "Hybrid",
-    employment_type: "Full-Time",
-    country: "",
-    status: "draft",
-    expires_at: "",
-  });
+  const [hasAccess, setHasAccess] = useState<boolean>(true);
 
-  const totalPages = Math.ceil(totalApps / 50);
+  const checkAuth = async () => {
+    const authResult = await checkAuthClient();
+    if (!authResult.authenticated || !authResult.user) {
+      // Don't modify window.location here - handle in useEffect
+      return { shouldRedirect: true };
+    }
+    return { shouldRedirect: false };
+  };
 
   const fetchOpportunity = async () => {
     setIsLoading(true);
@@ -147,75 +58,55 @@ export default function OpportunityPage({
       setIsLoading(false);
       return;
     }
+    
+    // Also fetch company data to check tier access
+    if (data.company_id) {
+      const { data: companyData, error: companyError } = await getCompanyBySlug(slug);
+      if (!companyError && companyData) {
+        const tier = companyData.opportunity_tier || 'free';
+        const hasAccess = tier === 'basic' || tier === 'advanced';
+        setHasAccess(hasAccess);
+        
+        if (!hasAccess) {
+          setIsLoading(false);
+          return;
+        }
+      }
+    }
+    
     setOpportunity(data);
-    setFormData({
-      title: data.title || "",
-      description: data.description || "",
-      full_description: data.full_description || "",
-      requirements: data.requirements || "",
-      benefits: data.benefits || "",
-      type: data.type || "",
-      location: data.location || "",
-      salary: data.salary || "",
-      application_link: data.application_link || "",
-      contact_email: data.contact_email || "",
-      work_mode: data.work_mode || "Hybrid",
-      employment_type: data.employment_type || "Full-Time",
-      country: data.country || "",
-      status: data.status || "draft",
-      expires_at: data.expires_at ? data.expires_at.split("T")[0] : "",
-    });
-    await fetchApplications(1);
-  };
-
-  const fetchApplications = async (page: number) => {
-    setIsLoading(true);
-    const result = await getOpportunityApplications(oppId, page, 50);
-    setApplications(result.data || []);
-    setTotalApps(result.total);
-    setCurrentPage(page);
     setIsLoading(false);
   };
 
-  const checkAuth = async () => {
-    const authResult = await checkAuthClient();
-    if (!authResult.authenticated || !authResult.user) {
-      window.location.href = getAuthRedirectUrl();
-      return;
-    }
-    setUserEmail(authResult.user.email);
-    fetchOpportunity();
-  };
-
   useEffect(() => {
-    checkAuth();
+    const checkAuthAndFetch = async () => {
+      const authResult = await checkAuthClient();
+      if (!authResult.authenticated || !authResult.user) {
+        window.location.replace(getAuthRedirectUrl());
+        return;
+      }
+      await fetchOpportunity();
+    };
+    
+    checkAuthAndFetch();
   }, [slug, oppId]);
 
-  const saveOpportunity = async () => {
-    if (!opportunity) return;
-    setIsSaving(true);
-    const { data, error } = await updateOpportunity(oppId, {
-      ...formData,
-      expires_at: formData.expires_at
-        ? new Date(formData.expires_at).toISOString()
-        : null,
-    } as Partial<Opportunity>);
-    if (error) {
-      setError("Failed to save");
-      showToast("Failed to save changes", "error");
-    } else if (data) {
-      setOpportunity(data);
-      showToast("Changes saved successfully", "success");
-    }
-    setIsSaving(false);
-  };
-
   const handleApplicationLinkClick = async () => {
-    if (formData.application_link && formData.application_link !== "apply") {
+    if (
+      opportunity?.application_link &&
+      opportunity.application_link !== "apply"
+    ) {
       await updateOpportunity(oppId, {
         external_link_clicks: (opportunity?.external_link_clicks || 0) + 1,
       } as Partial<Opportunity>);
-      setOpportunity((prev) => prev ? { ...prev, external_link_clicks: (prev.external_link_clicks || 0) + 1 } : null);
+      setOpportunity((prev) =>
+        prev
+          ? {
+              ...prev,
+              external_link_clicks: (prev.external_link_clicks || 0) + 1,
+            }
+          : null,
+      );
     }
   };
 
@@ -234,120 +125,6 @@ export default function OpportunityPage({
     }
   };
 
-  const openFeedbackModal = (app: any, status: string) => {
-    setSelectedApp(app);
-    setFeedbackStatus(status);
-    setFeedbackMessage(
-      getDefaultEmailMessage(
-        status,
-        app.name || app.company_name || "Applicant",
-      ),
-    );
-    setShowFeedbackModal(true);
-  };
-
-  const handleStatusUpdate = async (
-    appId: string,
-    newStatus: string,
-    message?: string,
-  ) => {
-    setIsSendingFeedback(true);
-    await updateApplicationFeedback(appId, newStatus, message, userEmail);
-
-    const app = applications.find((a) => a.id === appId);
-    const recipientEmail = app?.email || app?.tender_email;
-    if (recipientEmail && message) {
-      try {
-        await fetch("/api/send-email", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            toEmail: recipientEmail,
-            subject: getProgressLabel(newStatus),
-            message: message,
-            applicantName: app?.name || app?.company_name,
-            opportunityTitle: opportunity?.title,
-          }),
-        });
-      } catch (emailErr) {
-        console.error("Email send error:", emailErr);
-      }
-    }
-
-    const result = await getOpportunityApplications(oppId, currentPage, 50);
-    setApplications(result.data || []);
-    if (selectedApp?.id === appId) {
-      const updated = result.data?.find((a) => a.id === appId);
-      if (updated) setSelectedApp(updated);
-    }
-    setIsSendingFeedback(false);
-    setShowFeedbackModal(false);
-    setFeedbackMessage("");
-  };
-
-  const filteredApps = applications.filter((app) => {
-    if (showAIScoreModal) {
-      const scored = applicantScores.find((s) => s.id === app.id);
-      if (scored && statusFilter !== "all") {
-        if (statusFilter === "pending") return scored.score < 50;
-        if (statusFilter === "in_review")
-          return scored.score >= 50 && scored.score < 70;
-        if (statusFilter === "interview_pending") return scored.score >= 70;
-        if (statusFilter === "rejected") return scored.score < 30;
-      }
-      if (searchQuery) {
-        const q = searchQuery.toLowerCase();
-        return (
-          app.name?.toLowerCase().includes(q) ||
-          app.email?.toLowerCase().includes(q) ||
-          app.location?.toLowerCase().includes(q) ||
-          app.company_name?.toLowerCase().includes(q)
-        );
-      }
-      return true;
-    }
-
-    if (statusFilter !== "all") {
-      if (statusFilter === "pending") {
-        if (app.feedback?.[0]) return false;
-        return true;
-      }
-      const fb = app.feedback?.[0];
-      if (fb?.status !== statusFilter) return false;
-    }
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      return (
-        app.name?.toLowerCase().includes(q) ||
-        app.email?.toLowerCase().includes(q) ||
-        app.location?.toLowerCase().includes(q) ||
-        app.company_name?.toLowerCase().includes(q)
-      );
-    }
-    return true;
-  });
-
-  const stats = {
-    total: totalApps,
-    pending: applications.filter((a) => !a.feedback?.[0]).length,
-    in_review: applications.filter(
-      (a) => a.feedback?.[0]?.status === "in_review",
-    ).length,
-    interview: applications.filter(
-      (a) => a.feedback?.[0]?.status === "interview_pending",
-    ).length,
-    hired: applications.filter((a) =>
-      ["hired", "started_job", "started_internship"].includes(
-        a.feedback?.[0]?.status || "",
-      ),
-    ).length,
-    rejected: applications.filter((a) =>
-      ["rejected", "not_proceeding", "quit"].includes(
-        a.feedback?.[0]?.status || "",
-      ),
-    ).length,
-  };
-
   if (isLoading && !opportunity) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -356,31 +133,64 @@ export default function OpportunityPage({
     );
   }
 
-  if (error || !opportunity) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
-        <p className="text-gray-500 mb-4">{error || "Opportunity not found"}</p>
-        <Link
-          href={`/${slug}/opportunities`}
-          className="text-[#3182ce] hover:underline"
-        >
-          Go back
-        </Link>
-      </div>
-    );
-  }
+    if (error || !opportunity) {
+        return (
+            <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
+                <p className="text-gray-500 mb-4">{error || "Opportunity not found"}</p>
+                <Link
+                    href={`/${slug}/opportunities`}
+                    className="text-[#3182ce] hover:underline"
+                >
+                    Go back
+                </Link>
+            </div>
+        );
+    }
+
+    // If user doesn't have access to view opportunity details, show upgrade prompt
+    if (!hasAccess) {
+        return (
+            <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center py-12">
+                <div className="text-center">
+                    <div className="w-20 h-20 bg-purple-100 rounded-2xl flex items-center justify-center mb-6">
+                        <Briefcase className="w-10 h-10 text-purple-600" />
+                    </div>
+                    <h2 className="text-2xl font-bold text-gray-900 mb-4">Upgrade to View Opportunity Details</h2>
+                    <p className="text-gray-600 mb-8 max-w-xl">
+                        Your current plan ({opportunity?.company_id ? 'unknown' : 'free'} tier) doesn&apos;t include access to opportunity details.
+                        Upgrade to view and manage your opportunities.
+                    </p>
+                    <button
+                        onClick={() => {
+                            // Navigate to opportunities page to show upgrade modal there
+                            window.location.href = `/${slug}/opportunities`;
+                        }}
+                        className="inline-flex items-center gap-2 px-6 py-3 bg-[#3182ce] text-white rounded-xl font-medium text-sm hover:bg-[#2c5cb8] transition-colors"
+                    >
+                        <DollarSign className="w-5 h-5" />
+                        Upgrade Plan
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <Breadcrumb items={[
-          { label: "Opportunities", href: `/${slug}/opportunities` },
-          { label: opportunity?.title || "Opportunity", href: `/${slug}/opportunities/${oppId}` },
-        ]} />
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <Breadcrumb
+          items={[
+            { label: "Opportunities", href: `/${slug}/opportunities` },
+            {
+              label: opportunity?.title || "Opportunity",
+              href: `/${slug}/opportunities/${oppId}`,
+            },
+          ]}
+        />
 
-        <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+        <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden mb-6">
           <div className="px-6 py-4 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
@@ -415,440 +225,165 @@ export default function OpportunityPage({
           </div>
 
           <div className="p-6">
-            <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-8">
-              <div className="p-3 bg-gray-50 rounded-xl">
-                <div className="flex items-center gap-2 text-gray-500 mb-1">
-                  <Users className="w-4 h-4" />
-                  <span className="text-xs">Total</span>
-                </div>
-                <p className="text-xl font-bold text-gray-900">{stats.total}</p>
-              </div>
-              <div className="p-3 bg-yellow-50 rounded-xl">
-                <div className="flex items-center gap-2 text-yellow-600 mb-1">
-                  <Clock className="w-4 h-4" />
-                  <span className="text-xs">Pending</span>
-                </div>
-                <p className="text-xl font-bold text-gray-900">
-                  {stats.pending}
-                </p>
-              </div>
-              <div className="p-3 bg-blue-50 rounded-xl">
-                <div className="flex items-center gap-2 text-blue-600 mb-1">
-                  <MessageSquare className="w-4 h-4" />
-                  <span className="text-xs">In Review</span>
-                </div>
-                <p className="text-xl font-bold text-gray-900">
-                  {stats.in_review}
-                </p>
-              </div>
-              <div className="p-3 bg-purple-50 rounded-xl">
-                <div className="flex items-center gap-2 text-purple-600 mb-1">
-                  <ArrowRight className="w-4 h-4" />
-                  <span className="text-xs">Interview</span>
-                </div>
-                <p className="text-xl font-bold text-gray-900">
-                  {stats.interview}
-                </p>
-              </div>
-              <div className="p-3 bg-green-50 rounded-xl">
-                <div className="flex items-center gap-2 text-green-600 mb-1">
-                  <CheckCircle className="w-4 h-4" />
-                  <span className="text-xs">Hired</span>
-                </div>
-                <p className="text-xl font-bold text-gray-900">{stats.hired}</p>
-              </div>
-              <div className="p-3 bg-red-50 rounded-xl">
-                <div className="flex items-center gap-2 text-red-600 mb-1">
-                  <XCircle className="w-4 h-4" />
-                  <span className="text-xs">Rejected</span>
-                </div>
-                <p className="text-xl font-bold text-gray-900">
-                  {stats.rejected}
-                </p>
-              </div>
-            </div>
-
-            {formData.application_link && formData.application_link !== "apply" && (
-              <div className="mb-6 p-4 bg-purple-50 rounded-xl border border-purple-100">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <MousePointerClick className="w-5 h-5 text-purple-600" />
-                    <div>
-                      <p className="text-sm font-medium text-purple-900">Application Link Clicks</p>
-                      <p className="text-xs text-purple-600">Track how many people clicked the application link</p>
+            {opportunity.application_link &&
+              opportunity.application_link !== "apply" && (
+                <div className="mb-6 p-4 bg-purple-50 rounded-xl border border-purple-100">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <MousePointerClick className="w-5 h-5 text-purple-600" />
+                      <div>
+                        <p className="text-sm font-medium text-purple-900">
+                          Application Link Clicks
+                        </p>
+                        <p className="text-xs text-purple-600">
+                          Track how many people clicked the application link
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-2xl font-bold text-purple-900">
+                        {opportunity?.external_link_clicks || 0}
+                      </p>
+                      <p className="text-xs text-purple-600">total clicks</p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-2xl font-bold text-purple-900">{opportunity?.external_link_clicks || 0}</p>
-                    <p className="text-xs text-purple-600">total clicks</p>
-                  </div>
-                </div>
-                <div className="mt-3 flex items-center gap-2">
-                  <ExternalLink className="w-4 h-4 text-purple-600" />
-                  <a
-                    href={formData.application_link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={handleApplicationLinkClick}
-                    className="text-sm text-purple-700 hover:text-purple-900 hover:underline truncate"
-                  >
-                    {formData.application_link}
-                  </a>
-                </div>
-              </div>
-            )}
-
-            <div className="mb-8">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-gray-900">
-                  Applications
-                </h2>
-                <button
-                  onClick={async () => {
-                    if (!opportunity) return;
-                    setIsAIScoreLoading(true);
-                    try {
-                      const scores = await compareApplicants(
-                        opportunity.title,
-                        opportunity.description,
-                        opportunity.requirements,
-                        applications,
-                      );
-                      setApplicantScores(scores);
-                      setShowAIScoreModal(true);
-                    } catch (err) {
-                      console.error("AI comparison error:", err);
-                    } finally {
-                      setIsAIScoreLoading(false);
-                    }
-                  }}
-                  disabled={isAIScoreLoading || applications.length === 0}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl font-medium text-sm hover:from-purple-700 hover:to-indigo-700 transition-colors disabled:opacity-50"
-                >
-                  {isAIScoreLoading ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Sparkles className="w-4 h-4" />
-                  )}
-                  AI Compare
-                </button>
-              </div>
-
-              <ApplicationList
-                applications={applications}
-                filteredApps={filteredApps}
-                statusFilter={statusFilter}
-                setStatusFilter={setStatusFilter}
-                searchQuery={searchQuery}
-                setSearchQuery={setSearchQuery}
-                currentPage={currentPage}
-                totalApps={totalApps}
-                totalPages={totalPages}
-                showAIScoreModal={showAIScoreModal}
-                applicantScores={applicantScores}
-                onSelectApp={setSelectedApp}
-                onPageChange={fetchApplications}
-                isLoading={isLoading}
-              />
-            </div>
-
-            <div className="pt-6 border-t border-gray-200">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-gray-900">
-                  Edit Opportunity
-                </h2>
-                <button
-                  onClick={saveOpportunity}
-                  disabled={isSaving}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-[#3182ce] text-white rounded-xl font-medium text-sm hover:bg-[#2c5cb8] transition-colors disabled:opacity-50"
-                >
-                  {isSaving ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Save className="w-4 h-4" />
-                  )}
-                  Save Changes
-                </button>
-              </div>
-
-              <div className="grid gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Title
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.title}
-                    onChange={(e) =>
-                      setFormData({ ...formData, title: e.target.value })
-                    }
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Short Description
-                  </label>
-                  <textarea
-                    value={formData.description}
-                    onChange={(e) =>
-                      setFormData({ ...formData, description: e.target.value })
-                    }
-                    rows={3}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none resize-none"
-                    placeholder="Brief summary for listings..."
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Full Description
-                  </label>
-                  <RichTextEditor
-                    content={formData.full_description}
-                    onChange={(html) =>
-                      setFormData({ ...formData, full_description: html })
-                    }
-                    placeholder="Detailed description with requirements, responsibilities..."
-                  />
-                </div>
-
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      Requirements
-                    </label>
-                    <RichTextEditor
-                      content={formData.requirements}
-                      onChange={(html) =>
-                        setFormData({ ...formData, requirements: html })
-                      }
-                      placeholder="List requirements..."
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      Benefits
-                    </label>
-                    <RichTextEditor
-                      content={formData.benefits}
-                      onChange={(html) =>
-                        setFormData({ ...formData, benefits: html })
-                      }
-                      placeholder="List benefits..."
-                    />
-                  </div>
-                </div>
-
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      Type
-                    </label>
-                    <select
-                      value={formData.type}
-                      onChange={(e) =>
-                        setFormData({ ...formData, type: e.target.value })
-                      }
-                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none bg-white"
+                  <div className="mt-3 flex items-center gap-2">
+                    <ExternalLink className="w-4 h-4 text-purple-600" />
+                    <a
+                      href={opportunity.application_link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={handleApplicationLinkClick}
+                      className="text-sm text-purple-700 hover:text-purple-900 hover:underline truncate"
                     >
-                      <option value="">Select type</option>
-                      {OPPORTUNITY_TYPES.map((t) => (
-                        <option key={t} value={t}>
-                          {t}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      Status
-                    </label>
-                    <select
-                      value={formData.status}
-                      onChange={(e) =>
-                        setFormData({ ...formData, status: e.target.value })
-                      }
-                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none bg-white"
-                    >
-                      <option value="draft">Draft</option>
-                      <option value="published">Published</option>
-                    </select>
+                      {opportunity.application_link}
+                    </a>
                   </div>
                 </div>
+              )}
 
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      <MapPin className="w-4 h-4 inline mr-1" /> Location
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.location}
-                      onChange={(e) =>
-                        setFormData({ ...formData, location: e.target.value })
-                      }
-                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none"
-                    />
+            <div className="grid sm:grid-cols-2 gap-4">
+              <Link
+                href={`/${slug}/opportunities/${oppId}/applications`}
+                className="p-5 rounded-xl border border-gray-200 hover:border-[#3182ce] hover:bg-[#3182ce]/5 transition-colors group"
+              >
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
+                    <Users className="w-5 h-5 text-blue-600" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      Country
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.country}
-                      onChange={(e) =>
-                        setFormData({ ...formData, country: e.target.value })
-                      }
-                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none"
-                    />
+                    <p className="font-semibold text-gray-900 group-hover:text-[#3182ce] transition-colors">
+                      Applications
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      Manage incoming applications, update statuses, send feedback
+                    </p>
                   </div>
                 </div>
+                <div className="flex items-center text-sm text-[#3182ce] font-medium">
+                  View Applications
+                  <ArrowRight className="w-4 h-4 ml-1" />
+                </div>
+              </Link>
 
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      <DollarSign className="w-4 h-4 inline mr-1" /> Salary
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.salary}
-                      onChange={(e) =>
-                        setFormData({ ...formData, salary: e.target.value })
-                      }
-                      placeholder="e.g. $50,000 - $80,000"
-                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none"
-                    />
+              <Link
+                href={`/${slug}/opportunities/${oppId}/edit`}
+                className="p-5 rounded-xl border border-gray-200 hover:border-[#3182ce] hover:bg-[#3182ce]/5 transition-colors group"
+              >
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
+                    <Pencil className="w-5 h-5 text-purple-600" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      <Clock className="w-4 h-4 inline mr-1" /> Deadline
-                    </label>
-                    <input
-                      type="date"
-                      value={formData.expires_at}
-                      onChange={(e) =>
-                        setFormData({ ...formData, expires_at: e.target.value })
-                      }
-                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none"
-                    />
+                    <p className="font-semibold text-gray-900 group-hover:text-[#3182ce] transition-colors">
+                      Edit Opportunity
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      Update details, description, requirements, and settings
+                    </p>
                   </div>
                 </div>
-
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      Work Mode
-                    </label>
-                    <select
-                      value={formData.work_mode}
-                      onChange={(e) =>
-                        setFormData({ ...formData, work_mode: e.target.value })
-                      }
-                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none bg-white"
-                    >
-                      {WORK_MODES.map((w) => (
-                        <option key={w} value={w}>
-                          {w}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      Employment Type
-                    </label>
-                    <select
-                      value={formData.employment_type}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          employment_type: e.target.value,
-                        })
-                      }
-                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none bg-white"
-                    >
-                      {EMPLOYMENT_TYPES.map((e) => (
-                        <option key={e} value={e}>
-                          {e}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                <div className="flex items-center text-sm text-[#3182ce] font-medium">
+                  Edit Details
+                  <ArrowRight className="w-4 h-4 ml-1" />
                 </div>
-
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      <Globe className="w-4 h-4 inline mr-1" /> Application Link
-                    </label>
-                    <input
-                      type="url"
-                      value={formData.application_link}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          application_link: e.target.value,
-                        })
-                      }
-                      placeholder="https://... or 'apply' for internal form"
-                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      <Mail className="w-4 h-4 inline mr-1" /> Contact Email
-                    </label>
-                    <input
-                      type="email"
-                      value={formData.contact_email}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          contact_email: e.target.value,
-                        })
-                      }
-                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
+              </Link>
             </div>
           </div>
         </div>
+
+        <div className="bg-white rounded-2xl border border-gray-200 p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">
+            Opportunity Details
+          </h2>
+          <dl className="grid sm:grid-cols-2 gap-4">
+            <div>
+              <dt className="text-sm text-gray-500">Type</dt>
+              <dd className="text-sm font-medium text-gray-900">
+                {opportunity.type}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-sm text-gray-500">Location</dt>
+              <dd className="text-sm font-medium text-gray-900">
+                {opportunity.location}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-sm text-gray-500">Work Mode</dt>
+              <dd className="text-sm font-medium text-gray-900">
+                {opportunity.work_mode}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-sm text-gray-500">Employment Type</dt>
+              <dd className="text-sm font-medium text-gray-900">
+                {opportunity.employment_type}
+              </dd>
+            </div>
+            {opportunity.salary && (
+              <div>
+                <dt className="text-sm text-gray-500">Salary</dt>
+                <dd className="text-sm font-medium text-gray-900">
+                  {opportunity.salary}
+                </dd>
+              </div>
+            )}
+            <div>
+              <dt className="text-sm text-gray-500">Status</dt>
+              <dd className="text-sm font-medium">
+                <span
+                  className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                    opportunity.status === "Open"
+                      ? "bg-green-100 text-green-700"
+                      : "bg-gray-100 text-gray-600"
+                  }`}
+                >
+                  {opportunity.status}
+                </span>
+              </dd>
+            </div>
+            {opportunity.expires_at && (
+              <div>
+                <dt className="text-sm text-gray-500">Deadline</dt>
+                <dd className="text-sm font-medium text-gray-900">
+                  {new Date(opportunity.expires_at).toLocaleDateString()}
+                </dd>
+              </div>
+            )}
+            {opportunity.application_link && (
+              <div>
+                <dt className="text-sm text-gray-500">Application Link</dt>
+                <dd className="text-sm font-medium text-[#3182ce] truncate">
+                  {opportunity.application_link === "apply"
+                    ? "Internal Form"
+                    : opportunity.application_link}
+                </dd>
+              </div>
+            )}
+          </dl>
+        </div>
       </div>
-
-      {selectedApp && !showFeedbackModal && (
-        <ApplicationDetailModal
-          app={selectedApp}
-          onClose={() => setSelectedApp(null)}
-          onUpdateStatus={(status) => openFeedbackModal(selectedApp, status)}
-          isSending={isSendingFeedback}
-        />
-      )}
-
-      {showFeedbackModal && selectedApp && (
-        <FeedbackModal
-          app={selectedApp}
-          initialStatus={feedbackStatus}
-          initialMessage={feedbackMessage}
-          onSend={handleStatusUpdate}
-          onClose={() => {
-            setShowFeedbackModal(false);
-            setFeedbackMessage("");
-          }}
-          isSending={isSendingFeedback}
-        />
-      )}
-
-      {showAIScoreModal && (
-        <AIScoreModal
-          scores={applicantScores}
-          onClose={() => setShowAIScoreModal(false)}
-        />
-      )}
 
       {showDeleteModal && (
         <ConfirmationModal

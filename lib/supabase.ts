@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { FeaturedStartup, UserCompany, Event, Opportunity, Application, EventRegistration, EventTicket, EventSchedule, EventCompany, EventMetaDetails, ApplicationFeedback, Asset, Industry } from "@/types/company";
+import { FeaturedStartup, UserCompany, Event, Opportunity, Application, EventRegistration, EventInvoice, EventTicket, EventSchedule, EventCompany, EventMetaDetails, ApplicationFeedback, Asset, Industry } from "@/types/company";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_PROJECT_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_API_KEY!;
@@ -41,15 +41,43 @@ export async function incrementOpportunityLinkClicks(id: string): Promise<{ erro
   return { error };
 }
 
-export async function getOpportunityApplications(oppId: string, page = 1, limit = 50): Promise<{ data: Application[]; total: number; error: Error | null }> {
+export async function getOpportunityApplications(oppId: string, page = 1, limit = 50, options?: { status?: string; search?: string }): Promise<{ data: Application[]; total: number; error: Error | null }> {
   const offset = (page - 1) * limit;
-  const { data, error, count } = await supabase
+
+  let query = supabase
     .from("applications")
-    .select("*", { count: "exact" })
-    .eq("opportunity_id", oppId)
+    .select("*, feedback:applications_feedback(*)", { count: "exact" })
+    .eq("opportunity_id", oppId);
+
+  if (options?.status && options.status !== "all") {
+    if (options.status === "pending") {
+      query = query.is("feedback.id", null);
+    } else {
+      query = query.eq("feedback.status", options.status);
+    }
+  }
+
+  if (options?.search) {
+    const q = `%${options.search}%`;
+    query = query.or(`name.ilike.${q},email.ilike.${q},location.ilike.${q}`);
+  }
+
+  const { data, error, count } = await query
     .order("created_at", { ascending: false })
     .range(offset, offset + limit - 1);
   return { data: data || [], total: count || 0, error };
+}
+
+export async function getOpportunityByIdWithStats(oppId: string): Promise<{ data: Opportunity & { total_apps: number } | null; error: Error | null }> {
+  const { data: opp, error } = await supabase.from("opportunities").select("*").eq("id", oppId).single();
+  if (error || !opp) return { data: null, error };
+
+  const { count } = await supabase
+    .from("applications")
+    .select("*", { count: "exact", head: true })
+    .eq("opportunity_id", oppId);
+
+  return { data: { ...opp, total_apps: count || 0 }, error: null };
 }
 
 export async function getEventById(id: string): Promise<{ data: Event | null; error: Error | null }> {
@@ -322,7 +350,7 @@ export async function getCompanyIndustries(companyId: string): Promise<{ data: s
   
   if (error) return { data: [], error };
   
-  const industryIds = (data as any[])?.map((d: any) => d.industry?.id).filter(Boolean) as string[] || [];
+  const industryIds = ((data as unknown) as { industry: { id: string } }[])?.map((d) => d.industry?.id).filter(Boolean) as string[] || [];
   return { data: industryIds, error: null };
 }
 
@@ -338,4 +366,72 @@ export async function setCompanyIndustries(companyId: string, industryIds: strin
   
   const { error } = await supabase.from("company_industries").insert(inserts);
   return { error };
+}
+
+export async function getEventInvoices(eventId: string): Promise<{ data: (EventInvoice & { registration: EventRegistration | null })[]; error: Error | null }> {
+  const { data: registrations } = await supabase
+    .from("event_registrations")
+    .select("id")
+    .eq("event_id", eventId);
+  const regIds = registrations?.map(r => r.id) || [];
+  if (regIds.length === 0) return { data: [], error: null };
+
+  const { data, error } = await supabase
+    .from("event_invoices")
+    .select("*, registration:event_registrations(*)")
+    .in("registration_id", regIds)
+    .order("created_at", { ascending: false });
+  return { data: data || [], error };
+}
+
+export async function getEventFinancials(eventId: string): Promise<{
+  total_revenue: number;
+  pending: number;
+  paid: number;
+  refunded: number;
+  invoice_count: number;
+  error: Error | null;
+}> {
+  const { data: registrations } = await supabase
+    .from("event_registrations")
+    .select("id")
+    .eq("event_id", eventId);
+  const regIds = registrations?.map(r => r.id) || [];
+  if (regIds.length === 0) return { total_revenue: 0, pending: 0, paid: 0, refunded: 0, invoice_count: 0, error: null };
+
+  const { data: invoices, error } = await supabase
+    .from("event_invoices")
+    .select("amount, currency, status")
+    .in("registration_id", regIds);
+
+  if (error) return { total_revenue: 0, pending: 0, paid: 0, refunded: 0, invoice_count: 0, error };
+
+  const stats = {
+    total_revenue: invoices?.filter(i => i.status === "paid").reduce((sum, i) => sum + Number(i.amount), 0) || 0,
+    pending: invoices?.filter(i => i.status === "pending").reduce((sum, i) => sum + Number(i.amount), 0) || 0,
+    paid: invoices?.filter(i => i.status === "paid").reduce((sum, i) => sum + Number(i.amount), 0) || 0,
+    refunded: invoices?.filter(i => i.status === "refunded").reduce((sum, i) => sum + Number(i.amount), 0) || 0,
+    invoice_count: invoices?.length || 0,
+    error: null,
+  };
+  return stats;
+}
+
+export async function updateCompanyTier(companyId: string, updates: {
+  opportunity_tier?: string;
+  opportunity_listings_purchased?: number;
+  opportunity_listings_used?: number;
+  subscription_started_at?: string | null;
+  subscription_expires_at?: string | null;
+}): Promise<{ error: Error | null }> {
+  const { error } = await supabase
+    .from("featured_startups")
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq("id", companyId);
+
+  return { error };
+}
+
+export async function checkAndNotifySubscriptionStatus(companyId: string): Promise<boolean> {
+  return false;
 }

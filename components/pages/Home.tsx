@@ -77,7 +77,7 @@ function CompanyDashboardContent() {
     try {
       const authResult = await checkAuthClient();
       if (!authResult.authenticated || !authResult.user) {
-        window.location.href = getAuthRedirectUrl();
+        window.location.replace(getAuthRedirectUrl());
         return;
       }
       setUser({
@@ -92,7 +92,7 @@ function CompanyDashboardContent() {
       await fetchCompanies(authResult.user.id, authResult.isAdmin);
     } catch (err) {
       console.error("Auth check failed:", err);
-      window.location.href = getAuthRedirectUrl();
+      window.location.replace(getAuthRedirectUrl());
     }
   };
 

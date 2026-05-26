@@ -48,19 +48,6 @@ export default function EditEventPage({ params }: Props) {
 
   const [dateError, setDateError] = useState<string | null>(null);
 
-  useEffect(() => {
-    checkAuth();
-  }, [slug, eventId]);
-
-  const checkAuth = async () => {
-    const authResult = await checkAuthClient();
-    if (!authResult.authenticated || !authResult.user) {
-      window.location.href = getAuthRedirectUrl();
-      return;
-    }
-    fetchEvent();
-  };
-
   const fetchEvent = async () => {
     setIsLoading(true);
     const { data, error: eventError } = await getEventById(eventId);
@@ -88,6 +75,21 @@ export default function EditEventPage({ params }: Props) {
     });
     setIsLoading(false);
   };
+
+  const checkAuth = async () => {
+    const authResult = await checkAuthClient();
+    if (!authResult.authenticated || !authResult.user) {
+      window.location.replace(getAuthRedirectUrl());
+      return;
+    }
+    await fetchEvent();
+  };
+
+  useEffect(() => {
+    (async () => {
+      await checkAuth();
+    })();
+  }, [slug, eventId]);
 
   const handleSave = async () => {
     if (!event) return;

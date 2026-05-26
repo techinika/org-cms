@@ -60,14 +60,16 @@ export default function NewEventPage({ params }: Props) {
   const checkAuth = async () => {
     const authResult = await checkAuthClient();
     if (!authResult.authenticated || !authResult.user) {
-      window.location.href = getAuthRedirectUrl();
+      window.location.replace(getAuthRedirectUrl());
       return;
     }
     await fetchCompany();
   };
 
   useEffect(() => {
-    checkAuth();
+    (async () => {
+      await checkAuth();
+    })();
   }, [slug]);
 
   const handleSubmit = async () => {

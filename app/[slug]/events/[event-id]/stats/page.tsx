@@ -34,14 +34,10 @@ export default function EventStatsPage({ params }: Props) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    checkAuth();
-  }, [slug, eventId]);
-
   const checkAuth = async () => {
     const authResult = await checkAuthClient();
     if (!authResult.authenticated || !authResult.user) {
-      window.location.href = getAuthRedirectUrl();
+      window.location.replace(getAuthRedirectUrl());
       return;
     }
     fetchData();
@@ -70,6 +66,10 @@ export default function EventStatsPage({ params }: Props) {
     
     setIsLoading(false);
   };
+
+  useEffect(() => {
+    checkAuth();
+  }, [slug, eventId]);
 
   if (isLoading) {
     return (
