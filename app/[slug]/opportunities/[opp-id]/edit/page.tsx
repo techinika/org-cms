@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect } from "react";
+import { use } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   Briefcase,
@@ -12,36 +14,40 @@ import {
   Clock,
   Save,
   DollarSign,
+  Pencil,
 } from "lucide-react";
 import {
+  Opportunity,
   OPPORTUNITY_TYPES,
   WORK_MODES,
   EMPLOYMENT_TYPES,
 } from "@/types/company";
-import { supabase } from "@/lib/supabase";
+import { getOpportunityById, updateOpportunity, getCompanyBySlug } from "@/lib/supabase";
 import { checkAuthClient, getAuthRedirectUrl } from "@/lib/auth-client";
 import Navbar from "@/components/parts/Navbar";
 import Breadcrumb from "@/components/parts/Breadcrumb";
 import RichTextEditor from "@/components/parts/RichTextEditor";
+import { useToast } from "@/components/ui/Toast";
 
-interface Props {
-  params: Promise<{ slug: string }>;
-}
-
-export default function NewOpportunityPage({ params }: Props) {
-  const { slug } = use(params);
+export default function EditOpportunityPage({
+  params,
+}: {
+  params: Promise<{ slug: string; "opp-id": string }>;
+}) {
+  const { slug, "opp-id": oppId } = use(params);
+  const router = useRouter();
+  const { showToast } = useToast();
+  const [opportunity, setOpportunity] = useState<Opportunity | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [companyId, setCompanyId] = useState<string | null>(null);
-  const [hasAccess, setHasAccess] = useState<boolean>(false);
   const [formData, setFormData] = useState({
     title: "",
     description: "",
     full_description: "",
     requirements: "",
     benefits: "",
-    type: "Job",
+    type: "",
     location: "",
     salary: "",
     application_link: "",
@@ -52,28 +58,52 @@ export default function NewOpportunityPage({ params }: Props) {
     status: "draft",
     expires_at: "",
   });
+  const [hasAccess, setHasAccess] = useState<boolean>(true);
 
-  const fetchCompany = async () => {
-    const { data } = await supabase
-      .from("featured_startups")
-      .select("id, opportunity_tier")
-      .eq("slug", slug)
-      .single();
-    if (data) {
-      setCompanyId(data.id);
-      
-      // Check if company has access to create opportunities based on tier
-      const tier = data.opportunity_tier || 'free';
-      const hasAccess = tier === 'basic' || tier === 'advanced';
-      setHasAccess(hasAccess);
-      
-      if (!hasAccess) {
+    const fetchOpportunity = async () => {
+        setIsLoading(true);
+        const { data, error } = await getOpportunityById(oppId);
+        if (error || !data) {
+            setError("Opportunity not found");
+            setIsLoading(false);
+            return;
+        }
+        
+        // Also fetch company data to check tier access
+        if (data.company_id) {
+            const { data: companyData, error: companyError } = await getCompanyBySlug(slug);
+            if (!companyError && companyData) {
+                const tier = companyData.opportunity_tier || 'free';
+                const hasAccess = tier === 'basic' || tier === 'advanced';
+                setHasAccess(hasAccess);
+                
+                if (!hasAccess) {
+                    setIsLoading(false);
+                    return;
+                }
+            }
+        }
+        
+        setOpportunity(data);
+        setFormData({
+            title: data.title || "",
+            description: data.description || "",
+            full_description: data.full_description || "",
+            requirements: data.requirements || "",
+            benefits: data.benefits || "",
+            type: data.type || "",
+            location: data.location || "",
+            salary: data.salary || "",
+            application_link: data.application_link || "",
+            contact_email: data.contact_email || "",
+            work_mode: data.work_mode || "Hybrid",
+            employment_type: data.employment_type || "Full-Time",
+            country: data.country || "",
+            status: data.status || "draft",
+            expires_at: data.expires_at ? data.expires_at.split("T")[0] : "",
+        });
         setIsLoading(false);
-        return;
-      }
-    }
-    setIsLoading(false);
-  };
+    };
 
   const checkAuthAndFetch = async () => {
     const authResult = await checkAuthClient();
@@ -81,74 +111,33 @@ export default function NewOpportunityPage({ params }: Props) {
       window.location.replace(getAuthRedirectUrl());
       return;
     }
-    await fetchCompany();
+    await fetchOpportunity();
   };
 
   useEffect(() => {
-    checkAuthAndFetch();
-  }, [slug]);
+    (async () => {
+      await checkAuthAndFetch();
+    })();
+  }, [slug, oppId]);
 
-    const handleSubmit = async () => {
-        if (!companyId || !formData.title || !formData.description) {
-            setError("Please fill in required fields");
-            return;
-        }
-
-        setIsSaving(true);
-        const slug =
-            formData.title
-                .toLowerCase()
-                .replace(/[^a-z0-9]+/g, "-")
-                .replace(/(^-|-$)/g, "") +
-            "-" +
-            Date.now().toString(36);
-
-        const { error: insertError } = await supabase.from("opportunities").insert({
-            title: formData.title,
-            slug,
-            description: formData.description,
-            full_description: formData.full_description || formData.description,
-            requirements: formData.requirements,
-            benefits: formData.benefits,
-            type: formData.type,
-            location: formData.location,
-            salary: formData.salary || null,
-            application_link: formData.application_link || null,
-            contact_email: formData.contact_email || null,
-            work_mode: formData.work_mode,
-            employment_type: formData.employment_type,
-            country: formData.country || null,
-            status: formData.status,
-            company_id: companyId,
-            expires_at: formData.expires_at
-                ? new Date(formData.expires_at).toISOString()
-                : null,
-            views: 0,
-        });
-
-        if (insertError) {
-            setError("Failed to create opportunity");
-            setIsSaving(false);
-            return;
-        }
-
-        // If company is on basic tier, increment listings used
-        const { data: companyData } = await supabase
-            .from("featured_startups")
-            .select("opportunity_tier, opportunity_listings_used")
-            .eq("id", companyId)
-            .single();
-
-        if (companyData?.opportunity_tier === "basic") {
-            const newUsed = (companyData.opportunity_listings_used || 0) + 1;
-            await supabase
-                .from("featured_startups")
-                .update({ opportunity_listings_used: newUsed })
-                .eq("id", companyId);
-        }
-
-        window.location.href = `/${slug}/opportunities`;
-    };
+  const saveOpportunity = async () => {
+    if (!opportunity) return;
+    setIsSaving(true);
+    const { data, error } = await updateOpportunity(oppId, {
+      ...formData,
+      expires_at: formData.expires_at
+        ? new Date(formData.expires_at).toISOString()
+        : null,
+    } as Partial<Opportunity>);
+    if (error) {
+      setError("Failed to save");
+      showToast("Failed to save changes", "error");
+    } else if (data) {
+      setOpportunity(data);
+      showToast("Changes saved successfully", "success");
+    }
+    setIsSaving(false);
+  };
 
     if (isLoading) {
         return (
@@ -158,26 +147,32 @@ export default function NewOpportunityPage({ params }: Props) {
         );
     }
 
-    if (error) {
+    if (error || !opportunity) {
         return (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
-                {error}
+            <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
+                <p className="text-gray-500 mb-4">{error || "Opportunity not found"}</p>
+                <Link
+                    href={`/${slug}/opportunities`}
+                    className="text-[#3182ce] hover:underline"
+                >
+                    Go back
+                </Link>
             </div>
         );
     }
 
-    // If user doesn't have access to create opportunities, show upgrade prompt
+    // If user doesn't have access to edit opportunities, show upgrade prompt
     if (!hasAccess) {
         return (
             <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center py-12">
                 <div className="text-center">
                     <div className="w-20 h-20 bg-purple-100 rounded-2xl flex items-center justify-center mb-6">
-                        <Save className="w-10 h-10 text-purple-600" />
+                        <Pencil className="w-10 h-10 text-purple-600" />
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900 mb-4">Upgrade to Create Opportunities</h2>
+                    <h2 className="text-2xl font-bold text-gray-900 mb-4">Upgrade to Edit Opportunities</h2>
                     <p className="text-gray-600 mb-8 max-w-xl">
-                        Your current plan doesn&apos;t include the ability to create new opportunities.
-                        Upgrade to post job listings, internships, grants, and tenders.
+                        Your current plan ({opportunity?.company_id ? 'unknown' : 'free'} tier) doesn&apos;t include access to opportunity editing.
+                        Upgrade to modify opportunity details, requirements, and settings.
                     </p>
                     <button
                         onClick={() => {
@@ -199,36 +194,57 @@ export default function NewOpportunityPage({ params }: Props) {
       <Navbar />
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <Breadcrumb items={[
-          { label: "Opportunities", href: `/${slug}/opportunities` },
-          { label: "Create Opportunity", href: `/${slug}/opportunities/new` },
-        ]} />
+        <Breadcrumb
+          items={[
+            { label: "Opportunities", href: `/${slug}/opportunities` },
+            {
+              label: opportunity?.title || "Opportunity",
+              href: `/${slug}/opportunities/${oppId}`,
+            },
+            { label: "Edit", href: `/${slug}/opportunities/${oppId}/edit` },
+          ]}
+        />
 
         <div className="bg-white rounded-2xl border border-gray-200 p-6">
-          <div className="flex items-center gap-4 mb-8">
-            <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
-              <Briefcase className="w-6 h-6 text-purple-600" />
+          <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
+                <Briefcase className="w-6 h-6 text-purple-600" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-gray-900">
+                  Edit Opportunity
+                </h1>
+                <p className="text-sm text-gray-500">{opportunity.title}</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">
-                Create New Opportunity
-              </h1>
-              <p className="text-sm text-gray-500">
-                Add a new job, internship, grant, or tender
-              </p>
+            <div className="flex items-center gap-2">
+              <Link
+                href={`/${slug}/opportunities/${oppId}`}
+                className="inline-flex items-center gap-2 px-4 py-2 text-gray-700 bg-gray-100 rounded-xl font-medium text-sm hover:bg-gray-200 transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Back
+              </Link>
+              <button
+                onClick={saveOpportunity}
+                disabled={isSaving}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-[#3182ce] text-white rounded-xl font-medium text-sm hover:bg-[#2c5cb8] transition-colors disabled:opacity-50"
+              >
+                {isSaving ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4" />
+                )}
+                Save Changes
+              </button>
             </div>
           </div>
-
-          {error && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
-              {error}
-            </div>
-          )}
 
           <div className="grid gap-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Title <span className="text-red-500">*</span>
+                Title
               </label>
               <input
                 type="text"
@@ -236,27 +252,26 @@ export default function NewOpportunityPage({ params }: Props) {
                 onChange={(e) =>
                   setFormData({ ...formData, title: e.target.value })
                 }
-                placeholder="e.g. Senior Software Engineer"
                 className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none"
               />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Short Description <span className="text-red-500">*</span>
+                Short Description
               </label>
               <textarea
                 value={formData.description}
                 onChange={(e) =>
                   setFormData({ ...formData, description: e.target.value })
                 }
-                rows={2}
-                placeholder="Brief description..."
+                rows={3}
                 className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none resize-none"
+                placeholder="Brief summary for listings..."
               />
             </div>
 
-            <div className="prose max-w-none">
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
                 Full Description
               </label>
@@ -265,12 +280,12 @@ export default function NewOpportunityPage({ params }: Props) {
                 onChange={(html) =>
                   setFormData({ ...formData, full_description: html })
                 }
-                placeholder="Detailed description about the role..."
+                placeholder="Detailed description with requirements, responsibilities..."
               />
             </div>
 
             <div className="grid sm:grid-cols-2 gap-4">
-              <div className="prose max-w-none">
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
                   Requirements
                 </label>
@@ -282,7 +297,7 @@ export default function NewOpportunityPage({ params }: Props) {
                   placeholder="List requirements..."
                 />
               </div>
-              <div className="prose max-w-none">
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
                   Benefits
                 </label>
@@ -308,6 +323,7 @@ export default function NewOpportunityPage({ params }: Props) {
                   }
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none bg-white"
                 >
+                  <option value="">Select type</option>
                   {OPPORTUNITY_TYPES.map((t) => (
                     <option key={t} value={t}>
                       {t}
@@ -326,8 +342,8 @@ export default function NewOpportunityPage({ params }: Props) {
                   }
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none bg-white"
                 >
-                  <option value="published">Published</option>
                   <option value="draft">Draft</option>
+                  <option value="published">Published</option>
                 </select>
               </div>
             </div>
@@ -343,7 +359,6 @@ export default function NewOpportunityPage({ params }: Props) {
                   onChange={(e) =>
                     setFormData({ ...formData, location: e.target.value })
                   }
-                  placeholder="e.g. Kigali, Rwanda"
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none"
                 />
               </div>
@@ -357,7 +372,6 @@ export default function NewOpportunityPage({ params }: Props) {
                   onChange={(e) =>
                     setFormData({ ...formData, country: e.target.value })
                   }
-                  placeholder="e.g. Rwanda"
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none"
                 />
               </div>
@@ -449,7 +463,7 @@ export default function NewOpportunityPage({ params }: Props) {
                       application_link: e.target.value,
                     })
                   }
-                  placeholder="https://..."
+                  placeholder="https://... or 'apply' for internal form"
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none"
                 />
               </div>
@@ -461,26 +475,14 @@ export default function NewOpportunityPage({ params }: Props) {
                   type="email"
                   value={formData.contact_email}
                   onChange={(e) =>
-                    setFormData({ ...formData, contact_email: e.target.value })
+                    setFormData({
+                      ...formData,
+                      contact_email: e.target.value,
+                    })
                   }
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none"
                 />
               </div>
-            </div>
-
-            <div className="pt-4">
-              <button
-                onClick={handleSubmit}
-                disabled={isSaving}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 bg-[#3182ce] text-white rounded-xl font-medium hover:bg-[#2c5cb8] transition-colors disabled:opacity-50"
-              >
-                {isSaving ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  <Save className="w-5 h-5" />
-                )}
-                Create Opportunity
-              </button>
             </div>
           </div>
         </div>

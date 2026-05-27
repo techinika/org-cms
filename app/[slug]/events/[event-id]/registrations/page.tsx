@@ -65,14 +65,10 @@ export default function EventRegistrationsPage({ params }: Props) {
   const [scanResult, setScanResult] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
 
-  useEffect(() => {
-    checkAuth();
-  }, [slug, eventId]);
-
   const checkAuth = async () => {
     const authResult = await checkAuthClient();
-if (!authResult.authenticated || !authResult.user) {
-      window.location.href = getAuthRedirectUrl();
+    if (!authResult.authenticated || !authResult.user) {
+      window.location.replace(getAuthRedirectUrl());
       return;
     }
     fetchData();
@@ -91,10 +87,14 @@ if (!authResult.authenticated || !authResult.user) {
     setRegistrations(regData || []);
 
     const { data: ticketData } = await getEventTickets(eventId);
-    setTickets(ticketData?.map((t: any) => ({ id: t.id, name: t.name })) || []);
+    setTickets(ticketData?.map((t: { id: string; name: string }) => ({ id: t.id, name: t.name })) || []);
 
     setIsLoading(false);
   };
+
+  useEffect(() => {
+    checkAuth();
+  }, [slug, eventId]);
 
   const updateStatus = async (regId: string, newStatus: string) => {
     const { error } = await updateEventRegistration(regId, { status: newStatus });
@@ -278,13 +278,13 @@ if (!authResult.authenticated || !authResult.user) {
               placeholder="Search by name or email..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl"
+              className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none transition-all"
             />
           </div>
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-4 py-2.5 border border-gray-200 rounded-xl"
+            className="input-base"
           >
             <option value="all">All Status</option>
             <option value="confirmed">Confirmed</option>

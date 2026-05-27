@@ -29,9 +29,17 @@ import CompanyLogo from "@/components/ui/CompanyLogo";
 interface EventSpeaker {
   id: string;
   speaker?: {
+    id: string;
     name: string;
     title: string | null;
-    photo_url: string | null;
+    image_ref: string | null;
+    company?: {
+      name: string;
+      logo_url: string | null;
+    };
+    asset?: {
+      url: string;
+    };
   };
 }
 
@@ -59,19 +67,6 @@ export default function EventReviewPage({ params }: Props) {
   const [showUnpublishModal, setShowUnpublishModal] = useState(false);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
-  useEffect(() => {
-    checkAuth();
-  }, [slug, eventId]);
-
-  const checkAuth = async () => {
-    const authResult = await checkAuthClient();
-    if (!authResult.authenticated || !authResult.user) {
-      window.location.href = getAuthRedirectUrl();
-      return;
-    }
-    fetchAllData();
-  };
-
   const fetchAllData = async () => {
     setIsLoading(true);
     const { data: eventData } = await getEventById(eventId);
@@ -79,7 +74,7 @@ export default function EventReviewPage({ params }: Props) {
 
     const { data: speakersData } = await supabase
       .from("event_speakers")
-      .select("*, speaker:speakers(*)")
+      .select("*, speaker:speakers(*, company:featured_startups(*), asset:assets!image_ref(url))")
       .eq("event_id", eventId);
     setSpeakers(speakersData || []);
 
@@ -108,6 +103,21 @@ export default function EventReviewPage({ params }: Props) {
 
     setIsLoading(false);
   };
+
+  const checkAuth = async () => {
+    const authResult = await checkAuthClient();
+    if (!authResult.authenticated || !authResult.user) {
+      window.location.replace(getAuthRedirectUrl());
+      return;
+    }
+    await fetchAllData();
+  };
+
+  useEffect(() => {
+    (async () => {
+      await checkAuth();
+    })();
+  }, [slug, eventId]);
 
   const validateEvent = (): string[] => {
     const errors: string[] = [];
@@ -307,7 +317,12 @@ export default function EventReviewPage({ params }: Props) {
                   <div key={p.id} className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg">
                     {p.company && <CompanyLogo company={p.company} size="sm" />}
                     <span className="text-sm font-medium">{p.company?.name}</span>
-                    <span className="text-xs px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full capitalize">{p.relationship}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${
+                      p.relationship === "sponsor" ? "bg-purple-100 text-purple-700" :
+                      p.relationship === "organizer" ? "bg-blue-100 text-blue-700" :
+                      p.relationship === "supporter" ? "bg-teal-100 text-teal-700" :
+                      "bg-orange-100 text-orange-700"
+                    }`}>{p.relationship}</span>
                   </div>
                 ))}
               </div>
@@ -321,12 +336,15 @@ export default function EventReviewPage({ params }: Props) {
               <div className="flex flex-wrap gap-3">
                 {speakers.map((es) => (
                   <div key={es.id} className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg">
-                    {es.speaker?.photo_url ? (
-                      <img src={es.speaker.photo_url} className="w-6 h-6 rounded-full object-cover" />
+                    {es.speaker?.asset?.url ? (
+                      <img src={es.speaker.asset.url} className="w-6 h-6 rounded-full object-cover" />
                     ) : (
                       <Users className="w-4 h-4 text-gray-400" />
                     )}
                     <span className="text-sm font-medium">{es.speaker?.name}</span>
+                    <span className="text-xs text-gray-400">
+                      {es.speaker?.company?.name || es.speaker?.title}
+                    </span>
                   </div>
                 ))}
               </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import React, { useState, useEffect, use, type ComponentType } from "react";
 import Link from "next/link";
 import {
   Calendar,
@@ -18,6 +18,7 @@ import {
   HelpCircle,
   Ticket as TicketIcon,
   ExternalLink,
+  DollarSign,
 } from "lucide-react";
 import { Event } from "@/types/company";
 import { getEventById } from "@/lib/supabase";
@@ -35,14 +36,10 @@ export default function EventDetailPage({ params }: Props) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    checkAuth();
-  }, [slug, eventId]);
-
   const checkAuth = async () => {
     const authResult = await checkAuthClient();
     if (!authResult.authenticated || !authResult.user) {
-      window.location.href = getAuthRedirectUrl();
+      window.location.replace(getAuthRedirectUrl());
       return;
     }
     fetchEvent();
@@ -59,6 +56,10 @@ export default function EventDetailPage({ params }: Props) {
     setEvent(data);
     setIsLoading(false);
   };
+
+  useEffect(() => {
+    checkAuth();
+  }, [slug, eventId]);
 
   if (isLoading) {
     return (
@@ -85,7 +86,7 @@ export default function EventDetailPage({ params }: Props) {
     title: string;
     description: string;
     href: string;
-    icon: any;
+    icon: ComponentType<{ className?: string }>;
     color: string;
     target?: string;
   }
@@ -139,6 +140,13 @@ export default function EventDetailPage({ params }: Props) {
       href: `/${slug}/events/${eventId}/tickets`,
       icon: TicketIcon,
       color: "bg-pink-50 text-pink-600",
+    },
+    {
+      title: "Financials",
+      description: "View event earnings and invoices",
+      href: `/${slug}/events/${eventId}/financials`,
+      icon: DollarSign,
+      color: "bg-green-50 text-green-600",
     },
     ...(isPublished && !isExternal ? [{
       title: "RSVPs & Check-in",
@@ -202,8 +210,7 @@ export default function EventDetailPage({ params }: Props) {
 
         <div className="grid gap-4">
           {menuItems.map((item) => {
-            const linkProps: any = {
-              key: item.href,
+            const linkProps: React.ComponentPropsWithoutRef<"a"> & { href: string } = {
               href: item.href,
               className: "bg-white rounded-2xl border border-gray-200 p-6 hover:border-[#3182ce]/30 hover:shadow-md transition-all group",
             };
@@ -214,7 +221,7 @@ export default function EventDetailPage({ params }: Props) {
             const LinkComponent = item.target ? 'a' : Link;
             
             return (
-              <LinkComponent {...linkProps}>
+              <LinkComponent key={item.href} {...linkProps}>
                 <div className="flex items-start gap-4">
                   <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${item.color}`}>
                     <item.icon className="w-6 h-6" />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, use, useRef } from "react";
 import Link from "next/link";
 import {
   Building2,
@@ -8,6 +8,8 @@ import {
   ArrowLeft,
   Plus,
   Trash2,
+  Pencil,
+  Upload,
 } from "lucide-react";
 import { Event, FeaturedStartup } from "@/types/company";
 import { getEventById } from "@/lib/supabase";
@@ -45,16 +47,19 @@ export default function EventPartnersPage({ params }: Props) {
   const [saving, setSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showCreateNew, setShowCreateNew] = useState(false);
-  const [newCompany, setNewCompany] = useState({ name: "", description: "", logo_url: "" });
+  const [newCompany, setNewCompany] = useState({ name: "", description: "", logo_url: "", image_ref: "" });
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    checkAuth();
-  }, [slug, eventId]);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingPartner, setEditingPartner] = useState<EventCompany | null>(null);
+  const [editRelationship, setEditRelationship] = useState("partner");
 
   const checkAuth = async () => {
     const authResult = await checkAuthClient();
     if (!authResult.authenticated || !authResult.user) {
-      window.location.href = getAuthRedirectUrl();
+      window.location.replace(getAuthRedirectUrl());
       return;
     }
     fetchData();
@@ -100,6 +105,10 @@ export default function EventPartnersPage({ params }: Props) {
     setIsLoading(false);
   };
 
+  useEffect(() => {
+    checkAuth();
+  }, [slug, eventId]);
+
   const handleAddPartner = async () => {
     if (!selectedCompany) return;
     setSaving(true);
@@ -122,6 +131,36 @@ export default function EventPartnersPage({ params }: Props) {
     }
   };
 
+  const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setLogoPreview(URL.createObjectURL(file));
+    setIsUploading(true);
+    try {
+      const result = await fetch("/api/upload-image", {
+        method: "POST",
+        body: (() => {
+          const fd = new FormData();
+          fd.append("file", file);
+          fd.append("folder", "companies");
+          return fd;
+        })(),
+      }).then(r => r.json());
+
+      if (result.asset_id) {
+        setNewCompany((prev) => ({ ...prev, logo_url: result.url, image_ref: result.asset_id }));
+      } else {
+        throw new Error(result.error || "Upload failed");
+      }
+    } catch (error) {
+      console.error("Failed to upload logo:", error);
+      showToast("Failed to upload logo", "error");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const handleCreateCompany = async () => {
     if (!newCompany.name) return;
     setSaving(true);
@@ -130,6 +169,7 @@ export default function EventPartnersPage({ params }: Props) {
       name: newCompany.name,
       description: newCompany.description || "Partner for event",
       logo_url: newCompany.logo_url || null,
+      image_ref: newCompany.image_ref || null,
       slug: newCompany.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") + "-" + Date.now().toString(36),
       claimed: false,
     }).select().single();
@@ -144,7 +184,8 @@ export default function EventPartnersPage({ params }: Props) {
       });
       showToast("Company created and added", "success");
       setShowAddModal(false);
-      setNewCompany({ name: "", description: "", logo_url: "" });
+      setNewCompany({ name: "", description: "", logo_url: "", image_ref: "" });
+      setLogoPreview(null);
       setShowCreateNew(false);
       fetchData();
     }
@@ -162,6 +203,27 @@ export default function EventPartnersPage({ params }: Props) {
       fetchData();
     }
     setSaving(false);
+  };
+
+  const openEdit = (p: EventCompany) => {
+    setEditingPartner(p);
+    setEditRelationship(p.relationship || "partner");
+    setShowEditModal(true);
+  };
+
+  const handleEditPartner = async () => {
+    if (!editingPartner) return;
+    setSaving(true);
+    const { error } = await supabase.from("event_companies").update({ relationship: editRelationship }).eq("id", editingPartner.id);
+    setSaving(false);
+    if (error) {
+      showToast("Failed to update partner", "error");
+    } else {
+      showToast("Partner updated", "success");
+      setShowEditModal(false);
+      setEditingPartner(null);
+      fetchData();
+    }
   };
 
   if (isLoading) {
@@ -230,8 +292,19 @@ export default function EventPartnersPage({ params }: Props) {
                 </div>
                 <div className="flex-1">
                   <p className="font-medium text-gray-900">{p.company?.name}</p>
-                  <span className="text-xs px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full capitalize">{p.relationship}</span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${
+                    p.relationship === "sponsor" ? "bg-purple-100 text-purple-700" :
+                    p.relationship === "organizer" ? "bg-blue-100 text-blue-700" :
+                    p.relationship === "supporter" ? "bg-teal-100 text-teal-700" :
+                    "bg-orange-100 text-orange-700"
+                  }`}>{p.relationship}</span>
                 </div>
+                <button
+                  onClick={() => openEdit(p)}
+                  className="p-2 text-gray-400 hover:text-[#3182ce] hover:bg-blue-50 rounded-xl transition-colors"
+                >
+                  <Pencil className="w-5 h-5" />
+                </button>
                 <button
                   onClick={() => handleRemovePartner(p.id)}
                   disabled={saving}
@@ -247,7 +320,7 @@ export default function EventPartnersPage({ params }: Props) {
 
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50" onClick={() => { setShowAddModal(false); setShowCreateNew(false); }} />
+          <div className="absolute inset-0 bg-black/50" onClick={() => { setShowAddModal(false); setShowCreateNew(false); setLogoPreview(null); }} />
           <div className="relative bg-white rounded-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
             <h2 className="text-lg font-semibold mb-4">{showCreateNew ? "Create Company" : "Add Partner"}</h2>
             
@@ -259,7 +332,7 @@ export default function EventPartnersPage({ params }: Props) {
                     placeholder="Search companies..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full px-4 py-2.5 border rounded-xl"
+                    className="input-base"
                   />
                 </div>
                 <div className="mb-4">
@@ -270,6 +343,25 @@ export default function EventPartnersPage({ params }: Props) {
                     <Plus className="w-5 h-5" />
                     Create New Company
                   </button>
+                </div>
+                <div className="mb-4">
+                    <label className="block text-sm font-medium mb-1">Relationship Type</label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {(["partner", "sponsor", "organizer", "supporter"] as const).map((type) => (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => setRelationship(type)}
+                        className={`px-3 py-2 rounded-xl text-sm font-medium capitalize border ${
+                          relationship === type
+                            ? "bg-[#3182ce]/5 text-[#3182ce] border-[#3182ce]"
+                            : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
+                        }`}
+                      >
+                        {type}
+                      </button>
+                    ))}
+                  </div>
                 </div>
                 <div className="space-y-2 max-h-48 overflow-y-auto">
                   {companies
@@ -298,25 +390,66 @@ export default function EventPartnersPage({ params }: Props) {
                   <input
                     value={newCompany.name}
                     onChange={(e) => setNewCompany({ ...newCompany, name: e.target.value })}
-                    className="w-full px-4 py-2.5 border rounded-xl"
+                    className="input-base"
                     placeholder="Company name"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Logo URL</label>
-                  <input
-                    value={newCompany.logo_url}
-                    onChange={(e) => setNewCompany({ ...newCompany, logo_url: e.target.value })}
-                    className="w-full px-4 py-2.5 border rounded-xl"
-                    placeholder="https://..."
-                  />
+                  <label className="block text-sm font-medium mb-1">Relationship Type</label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {(["partner", "sponsor", "organizer", "supporter"] as const).map((type) => (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => setRelationship(type)}
+                        className={`px-3 py-2 rounded-xl text-sm font-medium capitalize border ${
+                          relationship === type
+                            ? "bg-[#3182ce]/5 text-[#3182ce] border-[#3182ce]"
+                            : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
+                        }`}
+                      >
+                        {type}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Logo</label>
+                  <div className="flex items-center gap-4">
+                    <div
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-16 h-16 rounded-xl border-2 border-dashed border-gray-300 hover:border-[#3182ce] hover:bg-blue-50 transition-all cursor-pointer flex items-center justify-center overflow-hidden bg-gray-50"
+                    >
+                      {logoPreview ? (
+                        <img
+                          src={logoPreview}
+                          alt="Logo preview"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : isUploading ? (
+                        <Loader2 className="w-6 h-6 text-[#3182ce] animate-spin" />
+                      ) : (
+                        <Upload className="w-6 h-6 text-gray-400" />
+                      )}
+                    </div>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleLogoChange}
+                    />
+                    <span className="text-xs text-gray-500">
+                      Upload a logo for the company
+                    </span>
+                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Description</label>
                   <textarea
                     value={newCompany.description}
                     onChange={(e) => setNewCompany({ ...newCompany, description: e.target.value })}
-                    className="w-full px-4 py-2.5 border rounded-xl"
+                    className="input-base resize-none"
                     rows={3}
                     placeholder="Short description..."
                   />
@@ -326,14 +459,14 @@ export default function EventPartnersPage({ params }: Props) {
             <div className="flex gap-3 mt-6">
               {showCreateNew && (
                 <button
-                  onClick={() => setShowCreateNew(false)}
+                  onClick={() => { setShowCreateNew(false); setLogoPreview(null); setNewCompany({ name: "", description: "", logo_url: "", image_ref: "" }); }}
                   className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200"
                 >
                   Back
                 </button>
               )}
               <button
-                onClick={() => setShowAddModal(false)}
+                onClick={() => { setShowAddModal(false); setLogoPreview(null); }}
                 className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200"
               >
                 Cancel
@@ -344,6 +477,50 @@ export default function EventPartnersPage({ params }: Props) {
                 className="flex-1 px-4 py-2 bg-[#3182ce] text-white rounded-xl hover:bg-[#2c5cb8] disabled:opacity-50"
               >
                 {saving ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : showCreateNew ? "Create & Add" : "Add"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showEditModal && editingPartner && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowEditModal(false)} />
+          <div className="relative bg-white rounded-2xl w-full max-w-lg p-6">
+            <h2 className="text-lg font-semibold mb-4">Edit Partner</h2>
+            <p className="text-sm text-gray-500 mb-4">{editingPartner.company?.name}</p>
+
+            <label className="block text-sm font-medium mb-2">Relationship Type</label>
+            <div className="grid grid-cols-4 gap-2 mb-6">
+              {(["partner", "sponsor", "organizer", "supporter"] as const).map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => setEditRelationship(type)}
+                  className={`px-3 py-2 rounded-xl text-sm font-medium capitalize border ${
+                    editRelationship === type
+                      ? "bg-[#3182ce]/5 text-[#3182ce] border-[#3182ce]"
+                      : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
+                  }`}
+                >
+                  {type}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleEditPartner}
+                disabled={saving}
+                className="flex-1 px-4 py-2 bg-[#3182ce] text-white rounded-xl hover:bg-[#2c5cb8] disabled:opacity-50"
+              >
+                {saving ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : "Save Changes"}
               </button>
             </div>
           </div>

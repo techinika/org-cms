@@ -1,4 +1,6 @@
 // types/company.ts
+export type OpportunityTier = "free" | "basic" | "advanced";
+
 export interface FeaturedStartup {
   id: string;
   created_at: string;
@@ -25,6 +27,11 @@ export interface FeaturedStartup {
   slug: string | null;
   claimed?: boolean | null;
   is_published?: boolean | null;
+  opportunity_tier?: OpportunityTier;
+  opportunity_listings_purchased?: number;
+  opportunity_listings_used?: number;
+  subscription_started_at?: string | null;
+  subscription_expires_at?: string | null;
 }
 
 export type UserCompanyRole = "creator" | "manager" | "events_manager" | "opportunities_manager" | "employee";
@@ -176,6 +183,18 @@ export interface EventRegistration {
   created_at: string;
 }
 
+export type EventInvoiceStatus = "pending" | "paid" | "cancelled" | "refunded";
+
+export interface EventInvoice {
+  id: string;
+  registration_id: string;
+  amount: number;
+  currency: string;
+  status: EventInvoiceStatus;
+  payment_link: string | null;
+  created_at: string;
+}
+
 export interface Speaker {
   id: string;
   name: string;
@@ -183,7 +202,7 @@ export interface Speaker {
   bio: string | null;
   company_id: string | null;
   org_name: string | null;
-  profile_picture: string | null;
+  image_ref: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -264,12 +283,10 @@ export function isEventFree(tickets: EventTicket[] | null): boolean {
 export interface Asset {
   id: string;
   url: string;
-  file_name: string;
-  file_type: string;
-  file_size: number;
-  width: number | null;
-  height: number | null;
-  imagekit_file_id: string;
+  name: string;
+  type: string;
+  views: number | null;
+  author_id: string | null;
   created_at: string;
   updated_at?: string;
 }

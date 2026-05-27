@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import crypto from "crypto";
 
 interface ImageKitResponse {
   fileId: string;
@@ -27,32 +26,21 @@ export async function POST(request: NextRequest) {
     }
 
     const imageKitPrivateKey = process.env.IMAGEKIT_PRIVATE_KEY;
-    const imageKitPublicKey = process.env.IMAGEKIT_PUBLIC_KEY;
-    
-    if (!imageKitPublicKey || !imageKitPrivateKey) {
-      return NextResponse.json({ error: "ImageKit keys not configured" }, { status: 500 });
+    if (!imageKitPrivateKey) {
+      return NextResponse.json({ error: "ImageKit private key not configured" }, { status: 500 });
     }
-
-    const token = crypto.randomBytes(32).toString("hex");
-    const expire = Math.floor(Date.now() / 1000) + 2400;
-    
-    const signature = crypto
-      .createHmac("sha1", imageKitPrivateKey)
-      .update(token + expire)
-      .digest("hex");
 
     const uploadFormData = new FormData();
     uploadFormData.append("file", file);
     uploadFormData.append("fileName", file.name || "upload");
     uploadFormData.append("folder", `/${folder}`);
     uploadFormData.append("useUniqueFileName", "true");
-    uploadFormData.append("publicKey", imageKitPublicKey);
-    uploadFormData.append("token", token);
-    uploadFormData.append("expire", String(expire));
-    uploadFormData.append("signature", signature);
 
     const uploadResponse = await fetch("https://upload.imagekit.io/api/v1/files/upload", {
       method: "POST",
+      headers: {
+        "Authorization": `Basic ${Buffer.from(`${imageKitPrivateKey}:`).toString("base64")}`,
+      },
       body: uploadFormData,
     });
 

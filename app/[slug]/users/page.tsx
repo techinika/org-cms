@@ -48,14 +48,10 @@ export default function CompanyUsersPage({
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedRole, setSelectedRole] = useState<typeof ROLES[number]>("manager");
 
-  useEffect(() => {
-    checkAuth();
-  }, [slug]);
-
   const checkAuth = async () => {
     const authResult = await checkAuthClient();
     if (!authResult.authenticated || !authResult.user) {
-      window.location.href = getAuthRedirectUrl();
+      window.location.replace(getAuthRedirectUrl());
       return;
     }
     setCurrentUserId(authResult.user.id);
@@ -82,6 +78,10 @@ export default function CompanyUsersPage({
     }
     setIsLoading(false);
   };
+
+  useEffect(() => {
+    checkAuth();
+  }, [slug]);
 
   const handleAction = (userCompany: UserCompany, action: "accept" | "reject") => {
     setConfirmAction({

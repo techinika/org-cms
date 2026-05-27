@@ -45,14 +45,10 @@ export default function EventTicketsPage({ params }: Props) {
     is_active: true,
   });
 
-  useEffect(() => {
-    checkAuth();
-  }, [slug, eventId]);
-
   const checkAuth = async () => {
     const authResult = await checkAuthClient();
     if (!authResult.authenticated || !authResult.user) {
-      window.location.href = getAuthRedirectUrl();
+      window.location.replace(getAuthRedirectUrl());
       return;
     }
     fetchData();
@@ -67,6 +63,10 @@ export default function EventTicketsPage({ params }: Props) {
     setTickets(ticketsData || []);
     setIsLoading(false);
   };
+
+  useEffect(() => {
+    checkAuth();
+  }, [slug, eventId]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -303,7 +303,7 @@ export default function EventTicketsPage({ params }: Props) {
                       type="number"
                       value={form.price}
                       onChange={(e) => setForm({ ...form, price: parseFloat(e.target.value) || 0 })}
-                      className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl"
+                      className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none transition-all"
                       min="0"
                       step="0.01"
                     />
@@ -314,7 +314,7 @@ export default function EventTicketsPage({ params }: Props) {
                   <select
                     value={form.currency}
                     onChange={(e) => setForm({ ...form, currency: e.target.value })}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl bg-white"
+                    className="input-base"
                   >
                     <option value="USD">USD</option>
                     <option value="EUR">EUR</option>
@@ -331,7 +331,7 @@ export default function EventTicketsPage({ params }: Props) {
                   type="number"
                   value={form.quantity}
                   onChange={(e) => setForm({ ...form, quantity: e.target.value })}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl"
+                  className="input-base"
                   min="1"
                   placeholder="e.g. 100"
                 />
@@ -344,7 +344,7 @@ export default function EventTicketsPage({ params }: Props) {
                     type="date"
                     value={form.sales_start}
                     onChange={(e) => setForm({ ...form, sales_start: e.target.value })}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl"
+                    className="input-base"
                   />
                 </div>
                 <div>
@@ -353,7 +353,7 @@ export default function EventTicketsPage({ params }: Props) {
                     type="date"
                     value={form.sales_end}
                     onChange={(e) => setForm({ ...form, sales_end: e.target.value })}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl"
+                    className="input-base"
                   />
                 </div>
               </div>

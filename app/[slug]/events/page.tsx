@@ -24,14 +24,10 @@ export default function CompanyEventsPage({ params }: { params: Promise<{ slug: 
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<{ open: boolean; event: Event | null }>({ open: false, event: null });
 
-  useEffect(() => {
-    checkAuth();
-  }, [slug]);
-
   const checkAuth = async () => {
     const authResult = await checkAuthClient();
     if (!authResult.authenticated || !authResult.user) {
-      window.location.href = getAuthRedirectUrl();
+      window.location.replace(getAuthRedirectUrl());
       return;
     }
     fetchCompany();
@@ -51,6 +47,10 @@ export default function CompanyEventsPage({ params }: { params: Promise<{ slug: 
     setEvents(eventsData || []);
     setIsLoading(false);
   };
+
+  useEffect(() => {
+    checkAuth();
+  }, [slug]);
 
   const handleDeleteEvent = async (eventId: string) => {
     setDeletingId(eventId);
