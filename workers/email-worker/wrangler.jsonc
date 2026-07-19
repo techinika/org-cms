@@ -1,0 +1,25 @@
+{
+	"$schema": "./node_modules/wrangler/config-schema.json",
+	"name": "org-cms-email",
+	"main": "src/index.ts",
+	"compatibility_date": "2025-01-01",
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	"routes": [
+		{
+			"pattern": "comms.api.techinika.com",
+			"zone_name": "techinika.com",
+			"custom_domain": true,
+			"enabled": true,
+			"previews_enabled": false
+		}
+	],
+	"vars": {
+		"SMTP_FROM": "Techinika",
+		"SMTP_PORT": "587",
+		"SMTP_SECURE": "false"
+	},
+	"workers_dev": true,
+	"preview_urls": true
+}

@@ -18,7 +18,7 @@ import {
   WORK_MODES,
   EMPLOYMENT_TYPES,
 } from "@/types/company";
-import { supabase } from "@/lib/supabase";
+import { getCompanyBySlug, workerFetch } from "@/lib/worker";
 import { checkAuthClient, getAuthRedirectUrl } from "@/lib/auth-client";
 import Navbar from "@/components/parts/Navbar";
 import Breadcrumb from "@/components/parts/Breadcrumb";
@@ -54,11 +54,7 @@ export default function NewOpportunityPage({ params }: Props) {
   });
 
   const fetchCompany = async () => {
-    const { data } = await supabase
-      .from("featured_startups")
-      .select("id, opportunity_tier")
-      .eq("slug", slug)
-      .single();
+    const { data } = await getCompanyBySlug(slug);
     if (data) {
       setCompanyId(data.id);
       
@@ -103,48 +99,46 @@ export default function NewOpportunityPage({ params }: Props) {
             "-" +
             Date.now().toString(36);
 
-        const { error: insertError } = await supabase.from("opportunities").insert({
-            title: formData.title,
-            slug,
-            description: formData.description,
-            full_description: formData.full_description || formData.description,
-            requirements: formData.requirements,
-            benefits: formData.benefits,
-            type: formData.type,
-            location: formData.location,
-            salary: formData.salary || null,
-            application_link: formData.application_link || null,
-            contact_email: formData.contact_email || null,
-            work_mode: formData.work_mode,
-            employment_type: formData.employment_type,
-            country: formData.country || null,
-            status: formData.status,
-            company_id: companyId,
-            expires_at: formData.expires_at
-                ? new Date(formData.expires_at).toISOString()
-                : null,
-            views: 0,
+        const insertRes = await workerFetch("/api/opportunities", {
+            method: "POST",
+            body: JSON.stringify({
+                title: formData.title,
+                slug,
+                description: formData.description,
+                full_description: formData.full_description || formData.description,
+                requirements: formData.requirements,
+                benefits: formData.benefits,
+                type: formData.type,
+                location: formData.location,
+                salary: formData.salary || null,
+                application_link: formData.application_link || null,
+                contact_email: formData.contact_email || null,
+                work_mode: formData.work_mode,
+                employment_type: formData.employment_type,
+                country: formData.country || null,
+                status: formData.status,
+                company_id: companyId,
+                expires_at: formData.expires_at
+                    ? new Date(formData.expires_at).toISOString()
+                    : null,
+                views: 0,
+            }),
         });
 
-        if (insertError) {
+        if (!insertRes.ok) {
             setError("Failed to create opportunity");
             setIsSaving(false);
             return;
         }
 
         // If company is on basic tier, increment listings used
-        const { data: companyData } = await supabase
-            .from("featured_startups")
-            .select("opportunity_tier, opportunity_listings_used")
-            .eq("id", companyId)
-            .single();
-
-        if (companyData?.opportunity_tier === "basic") {
-            const newUsed = (companyData.opportunity_listings_used || 0) + 1;
-            await supabase
-                .from("featured_startups")
-                .update({ opportunity_listings_used: newUsed })
-                .eq("id", companyId);
+        const tierRes = await workerFetch(`/api/companies/${companyId}/tier`);
+        const tierData = await tierRes.json();
+        if (tierData?.opportunity_tier === "basic") {
+            await workerFetch(`/api/companies/${companyId}/tier`, {
+                method: "PATCH",
+                body: JSON.stringify({ opportunity_listings_used: (tierData.opportunity_listings_used || 0) + 1 }),
+            });
         }
 
         window.location.href = `/${slug}/opportunities`;

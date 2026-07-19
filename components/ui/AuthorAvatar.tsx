@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { User } from "lucide-react";
+import { getAssetById } from "@/lib/worker";
 
 interface AuthorAvatarProps {
   imageRef?: string | null;
@@ -22,16 +23,7 @@ export default function AuthorAvatar({ imageRef, name = "", className = "", size
       }
       
       try {
-        const { createClient } = await import("@supabase/supabase-js");
-        const supabase = createClient(
-          process.env.NEXT_PUBLIC_PROJECT_URL!,
-          process.env.NEXT_PUBLIC_API_KEY!
-        );
-        const { data: asset } = await supabase
-          .from("assets")
-          .select("url")
-          .eq("id", imageRef)
-          .single();
+        const { data: asset } = await getAssetById(imageRef);
         setImageUrl(asset?.url || null);
       } catch (error) {
         console.error("Failed to fetch author avatar:", error);

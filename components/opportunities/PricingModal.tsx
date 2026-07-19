@@ -9,9 +9,9 @@ import {
   CalendarDays,
   Loader2,
 } from "lucide-react";
-import { updateCompanyTier } from "@/lib/supabase";
 import { useToast } from "@/components/ui/Toast";
 import { OpportunityTier } from "@/types/company";
+import { workerFetch } from "@/lib/worker";
 
 interface PricingModalProps {
   isOpen: boolean;
@@ -59,10 +59,13 @@ export default function PricingModal({
       };
     }
 
-    const { error } = await updateCompanyTier(companyId, updates);
+    const res = await workerFetch(`/api/companies/${companyId}/tier`, {
+      method: "PATCH",
+      body: JSON.stringify(updates),
+    });
 
-    if (error) {
-      showToast("Upgrade failed: " + error.message, "error");
+    if (!res.ok) {
+      showToast("Upgrade failed", "error");
     } else {
       showToast("Upgrade successful!", "success");
       onUpgradeSuccess();

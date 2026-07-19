@@ -12,11 +12,10 @@ import {
   Calendar,
 } from "lucide-react";
 import { Event } from "@/types/company";
-import { getEventById } from "@/lib/supabase";
+import { getEventById, workerFetch } from "@/lib/worker";
 import { checkAuthClient, getAuthRedirectUrl } from "@/lib/auth-client";
 import Navbar from "@/components/parts/Navbar";
 import Breadcrumb from "@/components/parts/Breadcrumb";
-import { supabase } from "@/lib/supabase";
 
 interface Props {
   params: Promise<{ slug: string; "event-id": string }>;
@@ -51,11 +50,9 @@ export default function EventStatsPage({ params }: Props) {
       setStats((prev) => ({ ...prev, views: Number(eventData.views) || 0 }));
     }
 
-    const { count: regCount } = await supabase
-      .from("event_registrations")
-      .select("*", { count: "exact" })
-      .eq("event_id", eventId);
-    setStats((prev) => ({ ...prev, registrations: regCount || 0 }));
+    const regRes = await workerFetch(`/api/events/${eventId}/stats`);
+    const statsData = regRes.ok ? await regRes.json() : { total_registrations: 0 };
+    setStats((prev) => ({ ...prev, registrations: statsData.total_registrations || 0 }));
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);

@@ -11,7 +11,7 @@ import {
   GripVertical,
 } from "lucide-react";
 import { Event } from "@/types/company";
-import { getEventById, updateEvent } from "@/lib/supabase";
+import { getEventById, workerFetch } from "@/lib/worker";
 import { checkAuthClient, getAuthRedirectUrl } from "@/lib/auth-client";
 import Navbar from "@/components/parts/Navbar";
 import Breadcrumb from "@/components/parts/Breadcrumb";
@@ -64,10 +64,13 @@ export default function EventFaqsPage({ params }: Props) {
 
   const saveFaqs = async (updatedFaqs: { question: string; answer: string }[]) => {
     setSaving(true);
-    const { error } = await updateEvent(eventId, { faqs: updatedFaqs });
+    const res = await workerFetch(`/api/events/${eventId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ faqs: updatedFaqs }),
+    });
     setSaving(false);
 
-    if (error) {
+    if (!res.ok) {
       showToast("Failed to save FAQs", "error");
     } else {
       showToast("FAQs updated", "success");

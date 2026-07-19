@@ -19,11 +19,11 @@ import { Opportunity, Application } from "@/types/company";
 import {
   getOpportunityById,
   getOpportunityApplications,
-  updateApplicationFeedback,
   getCompanyBySlug,
-} from "@/lib/supabase";
+  workerFetch,
+} from "@/lib/worker";
 import { compareApplicants, ApplicantScore } from "@/lib/ai";
-import { checkAuthClient, getAuthRedirectUrl } from "@/lib/auth-client";
+import { useAuth } from "@/hooks/useAuth";
 import Navbar from "@/components/parts/Navbar";
 import Breadcrumb from "@/components/parts/Breadcrumb";
 import ApplicationList from "@/components/opportunities/ApplicationList";
@@ -41,17 +41,17 @@ export default function OpportunityApplicationsPage({
   params: Promise<{ slug: string; "opp-id": string }>;
 }) {
   const { slug, "opp-id": oppId } = use(params);
+  const { user, isLoading: authLoading } = useAuth();
   const { showToast } = useToast();
   const [opportunity, setOpportunity] = useState<Opportunity | null>(null);
   const [applications, setApplications] = useState<Application[]>([]);
+  const [totalApps, setTotalApps] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [userId, setUserId] = useState<string | undefined>(undefined);
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedApp, setSelectedApp] = useState<Application | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalApps, setTotalApps] = useState(0);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [feedbackStatus, setFeedbackStatus] = useState("in_review");
   const [feedbackMessage, setFeedbackMessage] = useState("");
@@ -59,40 +59,37 @@ export default function OpportunityApplicationsPage({
   const [isAIScoreLoading, setIsAIScoreLoading] = useState(false);
   const [applicantScores, setApplicantScores] = useState<ApplicantScore[]>([]);
   const [showAIScoreModal, setShowAIScoreModal] = useState(false);
-  const [hasAccess, setHasAccess] = useState<boolean>(true);
-  const [companyTier, setCompanyTier] = useState<string>("free");
+  const [hasAccess, setHasAccess] = useState(true);
+  const [companyTier, setCompanyTier] = useState("free");
 
   const totalPages = Math.ceil(totalApps / PAGE_SIZE);
-
   const deferredSearch = useDeferredValue(searchQuery);
   const deferredStatus = useDeferredValue(statusFilter);
 
-    const fetchOpportunity = useCallback(async () => {
-        const { data, error } = await getOpportunityById(oppId);
-        if (error || !data) {
-            setError("Opportunity not found");
-            setIsLoading(false);
-            return;
+  const fetchOpportunity = useCallback(async () => {
+    const { data, error } = await getOpportunityById(oppId);
+    if (error || !data) {
+      setError("Opportunity not found");
+      setIsLoading(false);
+      return;
+    }
+
+    if (data.company_id) {
+      const { data: companyData } = await getCompanyBySlug(slug);
+      if (companyData) {
+        const tier = companyData.opportunity_tier || "free";
+        const access = tier === "basic" || tier === "advanced";
+        setHasAccess(access);
+        setCompanyTier(tier);
+        if (!access) {
+          setIsLoading(false);
+          return;
         }
-        
-        // Also fetch company data to check tier access
-        if (data.company_id) {
-            const { data: companyData, error: companyError } = await getCompanyBySlug(slug);
-            if (!companyError && companyData) {
-                const tier = companyData.opportunity_tier || 'free';
-                const hasAccess = tier === 'basic' || tier === 'advanced';
-                setHasAccess(hasAccess);
-                setCompanyTier(tier);
-                
-                if (!hasAccess) {
-                    setIsLoading(false);
-                    return;
-                }
-            }
-        }
-        
-        setOpportunity(data);
-    }, [oppId, slug]);
+      }
+    }
+
+    setOpportunity(data);
+  }, [oppId, slug]);
 
   const fetchApplications = useCallback(async (page: number) => {
     setIsLoading(true);
@@ -107,60 +104,51 @@ export default function OpportunityApplicationsPage({
   }, [oppId, deferredStatus, deferredSearch]);
 
   useEffect(() => {
-    const init = async () => {
-      const authResult = await checkAuthClient();
-      if (!authResult.authenticated || !authResult.user) {
-        window.location.replace(getAuthRedirectUrl());
-        return;
-      }
-      setUserId(authResult.user.id);
-      await fetchOpportunity();
-    };
-    init();
-  }, [slug, oppId]);
+    if (!authLoading && user) {
+      fetchOpportunity();
+    }
+  }, [authLoading, user, fetchOpportunity]);
 
   useEffect(() => {
-    if (!opportunity) return;
-    fetchApplications(1);
+    if (opportunity) {
+      fetchApplications(1);
+    }
   }, [deferredStatus, deferredSearch, fetchApplications, opportunity]);
 
   const openFeedbackModal = (app: Application, status: string) => {
     setSelectedApp(app);
     setFeedbackStatus(status);
     setFeedbackMessage(
-      getDefaultEmailMessage(
-        status,
-        app.name || app.company_name || "Applicant",
-      ),
+      getDefaultEmailMessage(status, app.name || app.company_name || "Applicant")
     );
     setShowFeedbackModal(true);
   };
 
-  const handleStatusUpdate = async (
-    appId: string,
-    newStatus: string,
-    message?: string,
-  ) => {
+  const handleStatusUpdate = async (appId: string, newStatus: string, message?: string) => {
     setIsSendingFeedback(true);
-    await updateApplicationFeedback(appId, newStatus, message, userId);
+    await workerFetch(`/api/applications/${appId}/feedback`, {
+      method: "POST",
+      body: JSON.stringify({ status: newStatus, feedback_message: message, reviewer_id: user?.id }),
+    });
 
-    const app = applications.find((a) => a.id === appId);
+    const app = applications.find(a => a.id === appId);
     const recipientEmail = app?.email || app?.tender_email;
     if (recipientEmail && message) {
       try {
-        await fetch("/api/send-email", {
+        const emailWorkerUrl = process.env.NEXT_PUBLIC_EMAIL_WORKER_URL || "http://localhost:8788";
+        await fetch(`${emailWorkerUrl}/api/send-email`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             toEmail: recipientEmail,
             subject: getProgressLabel(newStatus),
-            message: message,
+            message,
             applicantName: app?.name || app?.company_name,
             opportunityTitle: opportunity?.title,
           }),
         });
-      } catch (emailErr) {
-        console.error("Email send error:", emailErr);
+      } catch {
+        // Email failure is non-critical
       }
     }
 
@@ -169,8 +157,9 @@ export default function OpportunityApplicationsPage({
       { status: deferredStatus === "all" ? undefined : deferredStatus, search: deferredSearch || undefined }
     );
     setApplications(result.data || []);
+    setTotalApps(result.total);
     if (selectedApp?.id === appId) {
-      const updated = result.data?.find((a) => a.id === appId);
+      const updated = result.data?.find(a => a.id === appId);
       if (updated) setSelectedApp(updated);
     }
     setIsSendingFeedback(false);
@@ -180,8 +169,8 @@ export default function OpportunityApplicationsPage({
 
   const filteredApps = useMemo(() => {
     if (showAIScoreModal) {
-      return applications.filter((app) => {
-        const scored = applicantScores.find((s) => s.id === app.id);
+      return applications.filter(app => {
+        const scored = applicantScores.find(s => s.id === app.id);
         if (scored && deferredStatus !== "all") {
           if (deferredStatus === "pending") return scored.score < 50;
           if (deferredStatus === "in_review") return scored.score >= 50 && scored.score < 70;
@@ -200,20 +189,7 @@ export default function OpportunityApplicationsPage({
     return applications;
   }, [applications, showAIScoreModal, applicantScores, deferredStatus, deferredSearch]);
 
-  const stats = useMemo(() => ({
-    total: totalApps,
-    pending: applications.filter((a) => !a.feedback?.[0]).length,
-    in_review: applications.filter((a) => a.feedback?.[0]?.status === "in_review").length,
-    interview: applications.filter((a) => a.feedback?.[0]?.status === "interview_pending").length,
-    hired: applications.filter((a) =>
-      ["hired", "started_job", "started_internship"].includes(a.feedback?.[0]?.status || ""),
-    ).length,
-    rejected: applications.filter((a) =>
-      ["rejected", "not_proceeding", "quit"].includes(a.feedback?.[0]?.status || ""),
-    ).length,
-  }), [applications, totalApps]);
-
-  if (isLoading && !opportunity) {
+  if (authLoading || (isLoading && !opportunity)) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <Loader2 className="w-8 h-8 text-[#3182ce] animate-spin" />
@@ -221,44 +197,40 @@ export default function OpportunityApplicationsPage({
     );
   }
 
-    if (error || !opportunity) {
-        return (
-            <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
-                <p className="text-gray-500 mb-4">{error || "Opportunity not found"}</p>
-                <Link href={`/${slug}/opportunities`} className="text-[#3182ce] hover:underline">
-                    Go back
-                </Link>
-            </div>
-        );
-    }
+  if (error || !opportunity) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
+        <p className="text-gray-500 mb-4">{error || "Opportunity not found"}</p>
+        <Link href={`/${slug}/opportunities`} className="text-[#3182ce] hover:underline">
+          Go back
+        </Link>
+      </div>
+    );
+  }
 
-    // If user doesn't have access to applications features, show upgrade prompt
-    if (!hasAccess) {
-        return (
-            <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center py-12">
-                <div className="text-center">
-                    <div className="w-20 h-20 bg-purple-100 rounded-2xl flex items-center justify-center mb-6">
-                        <Users className="w-10 h-10 text-purple-600" />
-                    </div>
-                    <h2 className="text-2xl font-bold text-gray-900 mb-4">Upgrade to Manage Applications</h2>
-                    <p className="text-gray-600 mb-8 max-w-xl">
-                        Your current plan ({companyTier} tier) doesn&apos;t include access to applications management.
-                        Upgrade to view and manage applicant submissions, send feedback, and use AI comparison tools.
-                    </p>
-                    <button
-                        onClick={() => {
-                            // Navigate to opportunities page to show upgrade modal there
-                            window.location.href = `/${slug}/opportunities`;
-                        }}
-                        className="inline-flex items-center gap-2 px-6 py-3 bg-[#3182ce] text-white rounded-xl font-medium text-sm hover:bg-[#2c5cb8] transition-colors"
-                    >
-                        <DollarSign className="w-5 h-5" />
-                        Upgrade Plan
-                    </button>
-                </div>
-            </div>
-        );
-    }
+  if (!hasAccess) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center py-12">
+        <div className="text-center">
+          <div className="w-20 h-20 bg-purple-100 rounded-2xl flex items-center justify-center mb-6">
+            <Users className="w-10 h-10 text-purple-600" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">Upgrade to Manage Applications</h2>
+          <p className="text-gray-600 mb-8 max-w-xl">
+            Your current plan ({companyTier} tier) doesn&apos;t include access to applications management.
+            Upgrade to view and manage applicant submissions, send feedback, and use AI comparison tools.
+          </p>
+          <button
+            onClick={() => { window.location.href = `/${slug}/opportunities`; }}
+            className="inline-flex items-center gap-2 px-6 py-3 bg-[#3182ce] text-white rounded-xl font-medium text-sm hover:bg-[#2c5cb8] transition-colors"
+          >
+            <DollarSign className="w-5 h-5" />
+            Upgrade Plan
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -280,12 +252,8 @@ export default function OpportunityApplicationsPage({
                 <Briefcase className="w-6 h-6 text-purple-600" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gray-900">
-                  {opportunity.title}
-                </h1>
-                <p className="text-sm text-gray-500">
-                  {opportunity.type} • {opportunity.location}
-                </p>
+                <h1 className="text-xl font-bold text-gray-900">{opportunity.title}</h1>
+                <p className="text-sm text-gray-500">{opportunity.type} &bull; {opportunity.location}</p>
               </div>
             </div>
             <Link
@@ -304,50 +272,62 @@ export default function OpportunityApplicationsPage({
                   <Users className="w-4 h-4" />
                   <span className="text-xs">Total</span>
                 </div>
-                <p className="text-xl font-bold text-gray-900">{stats.total}</p>
+                <p className="text-xl font-bold text-gray-900">{totalApps}</p>
               </div>
               <div className="p-3 bg-yellow-50 rounded-xl">
                 <div className="flex items-center gap-2 text-yellow-600 mb-1">
                   <Clock className="w-4 h-4" />
                   <span className="text-xs">Pending</span>
                 </div>
-                <p className="text-xl font-bold text-gray-900">{stats.pending}</p>
+                <p className="text-xl font-bold text-gray-900">
+                  {applications.filter(a => !a.feedback?.[0]).length}
+                </p>
               </div>
               <div className="p-3 bg-blue-50 rounded-xl">
                 <div className="flex items-center gap-2 text-blue-600 mb-1">
                   <MessageSquare className="w-4 h-4" />
                   <span className="text-xs">In Review</span>
                 </div>
-                <p className="text-xl font-bold text-gray-900">{stats.in_review}</p>
+                <p className="text-xl font-bold text-gray-900">
+                  {applications.filter(a => a.feedback?.[0]?.status === "in_review").length}
+                </p>
               </div>
               <div className="p-3 bg-purple-50 rounded-xl">
                 <div className="flex items-center gap-2 text-purple-600 mb-1">
                   <ArrowRight className="w-4 h-4" />
                   <span className="text-xs">Interview</span>
                 </div>
-                <p className="text-xl font-bold text-gray-900">{stats.interview}</p>
+                <p className="text-xl font-bold text-gray-900">
+                  {applications.filter(a => a.feedback?.[0]?.status === "interview_pending").length}
+                </p>
               </div>
               <div className="p-3 bg-green-50 rounded-xl">
                 <div className="flex items-center gap-2 text-green-600 mb-1">
                   <CheckCircle className="w-4 h-4" />
                   <span className="text-xs">Hired</span>
                 </div>
-                <p className="text-xl font-bold text-gray-900">{stats.hired}</p>
+                <p className="text-xl font-bold text-gray-900">
+                  {applications.filter(a =>
+                    ["hired", "started_job", "started_internship"].includes(a.feedback?.[0]?.status || "")
+                  ).length}
+                </p>
               </div>
               <div className="p-3 bg-red-50 rounded-xl">
                 <div className="flex items-center gap-2 text-red-600 mb-1">
                   <XCircle className="w-4 h-4" />
                   <span className="text-xs">Rejected</span>
                 </div>
-                <p className="text-xl font-bold text-gray-900">{stats.rejected}</p>
+                <p className="text-xl font-bold text-gray-900">
+                  {applications.filter(a =>
+                    ["rejected", "not_proceeding", "quit"].includes(a.feedback?.[0]?.status || "")
+                  ).length}
+                </p>
               </div>
             </div>
 
             <div className="mb-8">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-gray-900">
-                  Applications
-                </h2>
+                <h2 className="text-lg font-semibold text-gray-900">Applications</h2>
                 <button
                   onClick={async () => {
                     if (!opportunity) return;

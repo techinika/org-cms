@@ -14,8 +14,7 @@ import {
   UserCheck,
 } from "lucide-react";
 import { FeaturedStartup, UserCompany } from "@/types/company";
-import { getCompanyBySlug, getCompanyUsers, updateCompanyUser } from "@/lib/supabase";
-import { supabase } from "@/lib/supabase";
+import { getCompanyBySlug, getCompanyUsers, updateCompanyUser } from "@/lib/worker";
 import { checkAuthClient, getAuthRedirectUrl } from "@/lib/auth-client";
 import Navbar from "@/components/parts/Navbar";
 import Breadcrumb from "@/components/parts/Breadcrumb";

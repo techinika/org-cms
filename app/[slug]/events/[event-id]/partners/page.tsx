@@ -12,12 +12,11 @@ import {
   Upload,
 } from "lucide-react";
 import { Event, FeaturedStartup } from "@/types/company";
-import { getEventById } from "@/lib/supabase";
+import { getEventById, getAllCompanies, getAssetById, workerFetch } from "@/lib/worker";
 import { checkAuthClient, getAuthRedirectUrl } from "@/lib/auth-client";
 import Navbar from "@/components/parts/Navbar";
 import Breadcrumb from "@/components/parts/Breadcrumb";
 import { useToast } from "@/components/ui/Toast";
-import { supabase } from "@/lib/supabase";
 import CompanyLogo from "@/components/ui/CompanyLogo";
 
 interface EventCompany {
@@ -70,15 +69,16 @@ export default function EventPartnersPage({ params }: Props) {
     const { data: eventData } = await getEventById(eventId);
     if (eventData) setEvent(eventData);
 
-    const { data: partnersData } = await supabase
-      .from("event_companies")
-      .select("*, company:featured_startups(*)")
-      .eq("event_id", eventId);
+    const partnersRes = await workerFetch(`/api/events/${eventId}/partners`);
+    let partnersData: EventCompany[] = [];
+    if (partnersRes.ok) {
+      partnersData = await partnersRes.json();
+    }
     
     if (partnersData) {
       for (const p of partnersData) {
         if (p.company?.image_ref) {
-          const { data: asset } = await supabase.from("assets").select("url").eq("id", p.company.image_ref).single();
+          const { data: asset } = await getAssetById(p.company.image_ref);
           if (asset) {
             p.company.logo_url = asset.url;
           }
@@ -87,14 +87,11 @@ export default function EventPartnersPage({ params }: Props) {
     }
     setPartners(partnersData || []);
 
-    const { data: allCompanies } = await supabase
-      .from("featured_startups")
-      .select("*")
-      .order("name");
+    const { data: allCompanies } = await getAllCompanies();
     if (allCompanies) {
       for (const company of allCompanies) {
         if (company.image_ref) {
-          const { data: asset } = await supabase.from("assets").select("url").eq("id", company.image_ref).single();
+          const { data: asset } = await getAssetById(company.image_ref);
           if (asset) {
             company.logo_url = asset.url;
           }
@@ -113,14 +110,16 @@ export default function EventPartnersPage({ params }: Props) {
     if (!selectedCompany) return;
     setSaving(true);
     
-    const { error } = await supabase.from("event_companies").insert({
-      event_id: eventId,
-      company_id: selectedCompany,
-      relationship,
+    const res = await workerFetch(`/api/events/${eventId}/partners`, {
+      method: "POST",
+      body: JSON.stringify({
+        company_id: selectedCompany,
+        relationship,
+      }),
     });
 
     setSaving(false);
-    if (error) {
+    if (!res.ok) {
       showToast("Failed to add partner", "error");
     } else {
       showToast("Partner added", "success");
@@ -165,22 +164,28 @@ export default function EventPartnersPage({ params }: Props) {
     if (!newCompany.name) return;
     setSaving(true);
     
-    const { data: created, error } = await supabase.from("featured_startups").insert({
-      name: newCompany.name,
-      description: newCompany.description || "Partner for event",
-      logo_url: newCompany.logo_url || null,
-      image_ref: newCompany.image_ref || null,
-      slug: newCompany.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") + "-" + Date.now().toString(36),
-      claimed: false,
-    }).select().single();
+    const createRes = await workerFetch("/api/companies", {
+      method: "POST",
+      body: JSON.stringify({
+        name: newCompany.name,
+        description: newCompany.description || "Partner for event",
+        logo_url: newCompany.logo_url || null,
+        image_ref: newCompany.image_ref || null,
+        slug: newCompany.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") + "-" + Date.now().toString(36),
+        claimed: false,
+      }),
+    });
 
-    if (error) {
+    if (!createRes.ok) {
       showToast("Failed to create company", "error");
-    } else if (created) {
-      await supabase.from("event_companies").insert({
-        event_id: eventId,
-        company_id: created.id,
-        relationship,
+    } else {
+      const created = await createRes.json();
+      await workerFetch(`/api/events/${eventId}/partners`, {
+        method: "POST",
+        body: JSON.stringify({
+          company_id: created.id,
+          relationship,
+        }),
       });
       showToast("Company created and added", "success");
       setShowAddModal(false);
@@ -194,9 +199,9 @@ export default function EventPartnersPage({ params }: Props) {
 
   const handleRemovePartner = async (id: number) => {
     setSaving(true);
-    const { error } = await supabase.from("event_companies").delete().eq("id", id);
+    const res = await workerFetch(`/api/events/${eventId}/partners/${id}`, { method: "DELETE" });
 
-    if (error) {
+    if (!res.ok) {
       showToast("Failed to remove", "error");
     } else {
       showToast("Partner removed", "success");
@@ -214,9 +219,12 @@ export default function EventPartnersPage({ params }: Props) {
   const handleEditPartner = async () => {
     if (!editingPartner) return;
     setSaving(true);
-    const { error } = await supabase.from("event_companies").update({ relationship: editRelationship }).eq("id", editingPartner.id);
+    const res = await workerFetch(`/api/events/${eventId}/partners/${editingPartner.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ relationship: editRelationship }),
+    });
     setSaving(false);
-    if (error) {
+    if (!res.ok) {
       showToast("Failed to update partner", "error");
     } else {
       showToast("Partner updated", "success");

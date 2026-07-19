@@ -13,12 +13,11 @@ import {
   Search,
 } from "lucide-react";
 import { Event, FeaturedStartup } from "@/types/company";
-import { getEventById } from "@/lib/supabase";
+import { getEventById, getAllSpeakers, getAllCompanies, workerFetch } from "@/lib/worker";
 import { checkAuthClient, getAuthRedirectUrl } from "@/lib/auth-client";
 import Navbar from "@/components/parts/Navbar";
 import Breadcrumb from "@/components/parts/Breadcrumb";
 import { useToast } from "@/components/ui/Toast";
-import { supabase } from "@/lib/supabase";
 
 interface EventSpeaker {
   id: string;
@@ -110,23 +109,18 @@ export default function EventSpeakersPage({ params }: Props) {
     const { data: eventData } = await getEventById(eventId);
     if (eventData) setEvent(eventData);
 
-    const { data: eventSpeakers } = await supabase
-      .from("event_speakers")
-      .select("*, speaker:speakers(*, company:featured_startups(*), asset:assets!image_ref(url))")
-      .eq("event_id", eventId)
-      .order("speaking_order", { ascending: true });
-    setSpeakers(eventSpeakers || []);
+    const esRes = await workerFetch(`/api/events/${eventId}/speakers`);
+    if (esRes.ok) {
+      const eventSpeakers = await esRes.json();
+      setSpeakers((eventSpeakers || []).sort((a: EventSpeaker, b: EventSpeaker) => (a.speaking_order ?? Infinity) - (b.speaking_order ?? Infinity)));
+    } else {
+      setSpeakers([]);
+    }
 
-    const { data: allSpeakers } = await supabase
-      .from("speakers")
-      .select("*, company:featured_startups(*), asset:assets!image_ref(url)")
-      .order("name");
-    setAvailableSpeakers(allSpeakers || []);
+    const { data: allSpeakers } = await getAllSpeakers();
+    setAvailableSpeakers((allSpeakers || []) as unknown as Speaker[]);
 
-    const { data: allCompanies } = await supabase
-      .from("featured_startups")
-      .select("id, name, logo_url")
-      .order("name");
+    const { data: allCompanies } = await getAllCompanies();
     setCompanies((allCompanies || []) as FeaturedStartup[]);
 
     setIsLoading(false);
@@ -177,13 +171,15 @@ export default function EventSpeakersPage({ params }: Props) {
   const handleAddSpeaker = async () => {
     if (!selectedSpeaker) return;
     setSaving(true);
-    const { error } = await supabase.from("event_speakers").insert({
-      event_id: eventId,
-      speaker_id: selectedSpeaker,
-      speaking_order: speakers.length + 1,
+    const res = await workerFetch(`/api/events/${eventId}/speakers`, {
+      method: "POST",
+      body: JSON.stringify({
+        speaker_id: selectedSpeaker,
+        speaking_order: speakers.length + 1,
+      }),
     });
     setSaving(false);
-    if (error) {
+    if (!res.ok) {
       showToast("Failed to add speaker", "error");
     } else {
       showToast("Speaker added", "success");
@@ -196,22 +192,33 @@ export default function EventSpeakersPage({ params }: Props) {
   const handleCreateSpeaker = async () => {
     if (!newSpeaker.name) return;
     setSaving(true);
-    const { data: created, error } = await supabase.from("speakers").insert({
-      name: newSpeaker.name,
-      title: newSpeaker.title || null,
-      company_id: newSpeaker.company_id || null,
-      org_name: newSpeaker.org_name || null,
-      bio: newSpeaker.bio || null,
-      image_ref: newSpeaker.image_ref || null,
-    }).select().single();
-    if (error) {
+    const res1 = await workerFetch("/api/speakers", {
+      method: "POST",
+      body: JSON.stringify({
+        name: newSpeaker.name,
+        title: newSpeaker.title || null,
+        company_id: newSpeaker.company_id || null,
+        org_name: newSpeaker.org_name || null,
+        bio: newSpeaker.bio || null,
+        image_ref: newSpeaker.image_ref || null,
+      }),
+    });
+    if (!res1.ok) {
       showToast("Failed to create speaker", "error");
-    } else if (created) {
-      await supabase.from("event_speakers").insert({
-        event_id: eventId,
+      setSaving(false);
+      return;
+    }
+    const created = await res1.json();
+    const res2 = await workerFetch(`/api/events/${eventId}/speakers`, {
+      method: "POST",
+      body: JSON.stringify({
         speaker_id: created.id,
         speaking_order: speakers.length + 1,
-      });
+      }),
+    });
+    if (!res2.ok) {
+      showToast("Failed to link speaker to event", "error");
+    } else {
       showToast("Speaker created and added", "success");
       setShowAddModal(false);
       setNewSpeaker({ name: "", title: "", company_id: "", org_name: "", bio: "", image_ref: "" });
@@ -224,12 +231,8 @@ export default function EventSpeakersPage({ params }: Props) {
 
   const handleRemoveSpeaker = async (speakerId: string) => {
     setSaving(true);
-    const { error } = await supabase
-      .from("event_speakers")
-      .delete()
-      .eq("event_id", eventId)
-      .eq("speaker_id", speakerId);
-    if (error) {
+    const res = await workerFetch(`/api/events/${eventId}/speakers/${speakerId}`, { method: "DELETE" });
+    if (!res.ok) {
       showToast("Failed to remove speaker", "error");
     } else {
       showToast("Speaker removed", "success");
@@ -260,16 +263,19 @@ export default function EventSpeakersPage({ params }: Props) {
   const handleEditSpeaker = async () => {
     if (!editingSpeaker?.speaker?.id || !editForm.name) return;
     setSaving(true);
-    const { error } = await supabase.from("speakers").update({
-      name: editForm.name,
-      title: editForm.title || null,
-      company_id: editForm.company_id || null,
-      org_name: editForm.org_name || null,
-      bio: editForm.bio || null,
-      image_ref: editForm.image_ref || null,
-    }).eq("id", editingSpeaker.speaker.id);
+    const res = await workerFetch(`/api/speakers/${editingSpeaker.speaker.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        name: editForm.name,
+        title: editForm.title || null,
+        company_id: editForm.company_id || null,
+        org_name: editForm.org_name || null,
+        bio: editForm.bio || null,
+        image_ref: editForm.image_ref || null,
+      }),
+    });
     setSaving(false);
-    if (error) {
+    if (!res.ok) {
       showToast("Failed to update speaker", "error");
     } else {
       showToast("Speaker updated", "success");

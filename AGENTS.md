@@ -70,12 +70,12 @@ This version has breaking changes — APIs, conventions, and file structure may 
   - Pre-filled email template based on progress stage
   - Personalized message field (editable)
   - "Update & Send Email" button
-- **AI Applicant Comparison** (uses Puter.js):
+- **AI Applicant Comparison** (uses OpenAI via ai-worker):
   - Click "AI Compare" button to analyze all applicants
   - AI scores each applicant 0-100% based on job requirements
   - Ranked list with reasoning shown in modal
-- **Email Notifications**: Uses nodemailer to send personalized emails to applicants when status is updated
-  - API endpoint: `/api/send-email`
+- **Email Notifications**: Uses email-worker to send personalized emails to applicants when status is updated
+  - Email Worker endpoint: `${NEXT_PUBLIC_EMAIL_WORKER_URL}/api/send-email`
 
 ## External Link Click Tracking
 - Opportunities with `application_link` value other than "apply" track external link clicks
@@ -180,6 +180,18 @@ components/
 ## Environment Variables
 Add SMTP config for email:
 - `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`
+
+## Worker Architecture
+The backend is split into separate Cloudflare Workers:
+
+- **Main API Worker** (`workers/src/`) — CRUD for companies, events, opportunities, assets, upload-image
+  - Port: 8787
+- **Email Worker** (`workers/email-worker/`) — send-email, subscription-check
+  - Port: 8788
+- **AI Worker** (`workers/ai-worker/`) — AI applicant comparison via OpenAI
+  - Port: 8789
+
+Each worker has its own `package.json`, `wrangler.jsonc`, and `src/env.ts`.
 
 ## Image & Video Upload (ImageKit)
 - All image uploads now use ImageKit instead of Cloudinary

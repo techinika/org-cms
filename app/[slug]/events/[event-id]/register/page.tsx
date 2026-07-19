@@ -12,7 +12,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { Event, EventTicket, EventMetaDetails, isEventFree } from "@/types/company";
-import { getEventById, getEventTickets, getEventMetaDetails, supabase } from "@/lib/supabase";
+import { getEventById, getEventTickets, getEventMetaDetails, workerFetch } from "@/lib/worker";
 import Navbar from "@/components/parts/Navbar";
 import Breadcrumb from "@/components/parts/Breadcrumb";
 
@@ -88,20 +88,23 @@ export default function EventRegisterPage({ params }: Props) {
     setSubmitError(null);
 
     try {
-      const { error } = await supabase.from("event_registrations").insert({
-        event_id: eventId,
-        user_id: userId || null,
-        ticket_id: formData.ticket_id || null,
-        status: meta?.requires_approval ? "pending_approval" : "confirmed",
-        answers: {
-          name: formData.name,
-          email: formData.email,
-          phone: formData.phone,
-          notes: formData.notes,
-        },
+      const res = await workerFetch(`/api/events/${eventId}/registrations`, {
+        method: "POST",
+        body: JSON.stringify({
+          event_id: eventId,
+          user_id: userId || null,
+          ticket_id: formData.ticket_id || null,
+          status: meta?.requires_approval ? "pending_approval" : "confirmed",
+          answers: {
+            name: formData.name,
+            email: formData.email,
+            phone: formData.phone,
+            notes: formData.notes,
+          },
+        }),
       });
 
-      if (error) throw error;
+      if (!res.ok) throw new Error(await res.text());
       setSubmitted(true);
     } catch (err: unknown) {
       setSubmitError(err instanceof Error ? err.message : "Registration failed");

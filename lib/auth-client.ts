@@ -29,8 +29,7 @@ export async function checkAuthClient(): Promise<{
       profilePicture: data.profilePicture || null,
       name: data.name || null,
     };
-  } catch (error) {
-    console.error("Auth check failed:", error);
+  } catch {
     return { authenticated: false, user: null, isAdmin: false, profilePicture: null, name: null };
   }
 }

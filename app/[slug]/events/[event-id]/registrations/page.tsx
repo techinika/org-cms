@@ -18,11 +18,10 @@ import {
   X,
 } from "lucide-react";
 import { Event } from "@/types/company";
-import { getEventById, getEventTickets, updateEventRegistration } from "@/lib/supabase";
+import { getEventById, getEventTickets, workerFetch } from "@/lib/worker";
 import { checkAuthClient, getAuthRedirectUrl } from "@/lib/auth-client";
 import Navbar from "@/components/parts/Navbar";
 import Breadcrumb from "@/components/parts/Breadcrumb";
-import { supabase } from "@/lib/supabase";
 import { QRCodeSVG as QRCode } from "qrcode.react";
 import { Html5Qrcode } from "html5-qrcode";
 import { useToast } from "@/components/ui/Toast";
@@ -79,11 +78,8 @@ export default function EventRegistrationsPage({ params }: Props) {
     const { data: eventData } = await getEventById(eventId);
     if (eventData) setEvent(eventData);
 
-    const { data: regData } = await supabase
-      .from("event_registrations")
-      .select("*, ticket:event_tickets(*)")
-      .eq("event_id", eventId)
-      .order("created_at", { ascending: false });
+    const regRes = await workerFetch(`/api/events/${eventId}/registrations`);
+    const regData = regRes.ok ? await regRes.json() : [];
     setRegistrations(regData || []);
 
     const { data: ticketData } = await getEventTickets(eventId);
@@ -97,8 +93,11 @@ export default function EventRegistrationsPage({ params }: Props) {
   }, [slug, eventId]);
 
   const updateStatus = async (regId: string, newStatus: string) => {
-    const { error } = await updateEventRegistration(regId, { status: newStatus });
-    if (error) {
+    const res = await workerFetch(`/api/events/${eventId}/registrations/${regId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: newStatus }),
+    });
+    if (!res.ok) {
       showToast("Failed to update status", "error");
     } else {
       showToast("Status updated", "success");
@@ -107,8 +106,11 @@ export default function EventRegistrationsPage({ params }: Props) {
   };
 
   const toggleCheckIn = async (reg: Registration) => {
-    const { error } = await updateEventRegistration(reg.id, { checked_in: !reg.checked_in });
-    if (error) {
+    const res = await workerFetch(`/api/events/${eventId}/registrations/${reg.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ checked_in: !reg.checked_in }),
+    });
+    if (!res.ok) {
       showToast("Failed to update check-in", "error");
     } else {
       showToast(reg.checked_in ? "Guest checked out" : "Guest checked in", "success");
@@ -117,8 +119,11 @@ export default function EventRegistrationsPage({ params }: Props) {
   };
 
   const handleScan = async (regId: string) => {
-    const { error } = await updateEventRegistration(regId, { checked_in: true });
-    if (error) {
+    const res = await workerFetch(`/api/events/${eventId}/registrations/${regId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ checked_in: true }),
+    });
+    if (!res.ok) {
       showToast("Failed to check in", "error");
     } else {
       showToast("Guest checked in successfully", "success");
