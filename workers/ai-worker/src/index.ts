@@ -3,9 +3,7 @@ import { handleCompareApplicants } from "./routes/compare";
 
 function corsHeaders(origin: string | null): Record<string, string> {
   const allowedOrigins = [
-    "https://edit.techinika.com",
     "https://org.techinika.com",
-    "https://techinika.com"
   ];
   const allowOrigin = origin && allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
   return {

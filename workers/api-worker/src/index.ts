@@ -7,9 +7,7 @@ import { routeAssets } from "./routes/assets";
 
 function corsHeaders(origin: string | null): Record<string, string> {
   const allowedOrigins = [
-    "https://edit.techinika.com",
     "https://org.techinika.com",
-    "https://techinika.com",
   ];
   const allowOrigin =
     origin && allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
@@ -43,6 +41,7 @@ export default {
     ctx: ExecutionContext,
   ): Promise<Response> {
     const url = new URL(request.url);
+    url.pathname = url.pathname.replace(/\/+/g, "/");
     const origin = request.headers.get("Origin");
 
     if (request.method === "OPTIONS") {
