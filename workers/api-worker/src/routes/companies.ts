@@ -26,7 +26,7 @@ export async function handleGetAllCompanies(env: Env, origin: string | null) {
 
 export async function handleSearchCompanies(env: Env, url: URL, origin: string | null) {
   const q = url.searchParams.get("q") || "";
-  const res = await supabaseGet(env, "featured_startups", `name=ilike.*${encodeURIComponent(q)}*&limit=10`);
+  const res = await supabaseGet(env, "featured_startups", `name=ilike.%25${encodeURIComponent(q)}%25&limit=10`);
   if (!res.ok) return jsonResp({ error: await res.text() }, 400, origin);
   return jsonResp(await res.json(), 200, origin);
 }
@@ -206,7 +206,7 @@ export async function routeCompanies(request: Request, env: Env, url: URL, origi
 
   // Company by slug
   if (path.match(/^\/api\/companies\/by-slug\/[^/]+$/) && method === "GET") {
-    const slug = path.split("/")[5];
+    const slug = path.split("/")[4];
     return handleGetCompanyBySlug(env, slug, origin);
   }
 
