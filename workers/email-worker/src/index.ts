@@ -4,11 +4,12 @@ import { handleSubscriptionCheck } from "./routes/subscription-check";
 
 function corsHeaders(origin: string | null): Record<string, string> {
   const allowedOrigins = [
-    "http://localhost:3000",
-    "http://localhost:3001",
-    "https://orgcms.techinika.com",
+    "https://edit.techinika.com",
+    "https://org.techinika.com",
+    "https://techinika.com",
   ];
-  const allowOrigin = origin && allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
+  const allowOrigin =
+    origin && allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
   return {
     "Access-Control-Allow-Origin": allowOrigin,
     "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
@@ -18,7 +19,11 @@ function corsHeaders(origin: string | null): Record<string, string> {
   };
 }
 
-function json(data: unknown, status = 200, origin: string | null = null): Response {
+function json(
+  data: unknown,
+  status = 200,
+  origin: string | null = null,
+): Response {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
@@ -29,7 +34,11 @@ function json(data: unknown, status = 200, origin: string | null = null): Respon
 }
 
 export default {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  async fetch(
+    request: Request,
+    env: Env,
+    ctx: ExecutionContext,
+  ): Promise<Response> {
     const url = new URL(request.url);
     const origin = request.headers.get("Origin");
 
@@ -42,7 +51,10 @@ export default {
         return await handleSendEmail(request, env, origin);
       }
 
-      if (url.pathname === "/api/subscription-check" && request.method === "GET") {
+      if (
+        url.pathname === "/api/subscription-check" &&
+        request.method === "GET"
+      ) {
         return await handleSubscriptionCheck(request, env, origin);
       }
 
