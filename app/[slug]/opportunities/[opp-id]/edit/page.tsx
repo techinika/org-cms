@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -22,8 +22,8 @@ import {
   WORK_MODES,
   EMPLOYMENT_TYPES,
 } from "@/types/company";
-import { getOpportunityById, updateOpportunity, getCompanyBySlug } from "@/lib/supabase";
-import { checkAuthClient, getAuthRedirectUrl } from "@/lib/auth-client";
+import { getOpportunityById, getCompanyBySlug, workerFetch } from "@/lib/worker";
+import { useAuth } from "@/hooks/useAuth";
 import Navbar from "@/components/parts/Navbar";
 import Breadcrumb from "@/components/parts/Breadcrumb";
 import RichTextEditor from "@/components/parts/RichTextEditor";
@@ -36,6 +36,7 @@ export default function EditOpportunityPage({
 }) {
   const { slug, "opp-id": oppId } = use(params);
   const router = useRouter();
+  const { user, isLoading: authLoading } = useAuth();
   const { showToast } = useToast();
   const [opportunity, setOpportunity] = useState<Opportunity | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -58,136 +59,121 @@ export default function EditOpportunityPage({
     status: "draft",
     expires_at: "",
   });
-  const [hasAccess, setHasAccess] = useState<boolean>(true);
+  const [hasAccess, setHasAccess] = useState(true);
 
-    const fetchOpportunity = async () => {
-        setIsLoading(true);
-        const { data, error } = await getOpportunityById(oppId);
-        if (error || !data) {
-            setError("Opportunity not found");
-            setIsLoading(false);
-            return;
-        }
-        
-        // Also fetch company data to check tier access
-        if (data.company_id) {
-            const { data: companyData, error: companyError } = await getCompanyBySlug(slug);
-            if (!companyError && companyData) {
-                const tier = companyData.opportunity_tier || 'free';
-                const hasAccess = tier === 'basic' || tier === 'advanced';
-                setHasAccess(hasAccess);
-                
-                if (!hasAccess) {
-                    setIsLoading(false);
-                    return;
-                }
-            }
-        }
-        
-        setOpportunity(data);
-        setFormData({
-            title: data.title || "",
-            description: data.description || "",
-            full_description: data.full_description || "",
-            requirements: data.requirements || "",
-            benefits: data.benefits || "",
-            type: data.type || "",
-            location: data.location || "",
-            salary: data.salary || "",
-            application_link: data.application_link || "",
-            contact_email: data.contact_email || "",
-            work_mode: data.work_mode || "Hybrid",
-            employment_type: data.employment_type || "Full-Time",
-            country: data.country || "",
-            status: data.status || "draft",
-            expires_at: data.expires_at ? data.expires_at.split("T")[0] : "",
-        });
-        setIsLoading(false);
-    };
-
-  const checkAuthAndFetch = async () => {
-    const authResult = await checkAuthClient();
-    if (!authResult.authenticated || !authResult.user) {
-      window.location.replace(getAuthRedirectUrl());
+  const fetchOpportunity = useCallback(async () => {
+    setIsLoading(true);
+    const { data, error } = await getOpportunityById(oppId);
+    if (error || !data) {
+      setError("Opportunity not found");
+      setIsLoading(false);
       return;
     }
-    await fetchOpportunity();
-  };
+
+    if (data.company_id) {
+      const { data: companyData } = await getCompanyBySlug(slug);
+      if (companyData) {
+        const tier = companyData.opportunity_tier || "free";
+        const access = tier === "basic" || tier === "advanced";
+        setHasAccess(access);
+        if (!access) {
+          setIsLoading(false);
+          return;
+        }
+      }
+    }
+
+    setOpportunity(data);
+    setFormData({
+      title: data.title || "",
+      description: data.description || "",
+      full_description: data.full_description || "",
+      requirements: data.requirements || "",
+      benefits: data.benefits || "",
+      type: data.type || "",
+      location: data.location || "",
+      salary: data.salary || "",
+      application_link: data.application_link || "",
+      contact_email: data.contact_email || "",
+      work_mode: data.work_mode || "Hybrid",
+      employment_type: data.employment_type || "Full-Time",
+      country: data.country || "",
+      status: data.status || "draft",
+      expires_at: data.expires_at ? data.expires_at.split("T")[0] : "",
+    });
+    setIsLoading(false);
+  }, [oppId, slug]);
 
   useEffect(() => {
-    (async () => {
-      await checkAuthAndFetch();
-    })();
-  }, [slug, oppId]);
+    if (!authLoading && user) {
+      fetchOpportunity();
+    }
+  }, [authLoading, user, fetchOpportunity]);
 
   const saveOpportunity = async () => {
     if (!opportunity) return;
     setIsSaving(true);
-    const { data, error } = await updateOpportunity(oppId, {
-      ...formData,
-      expires_at: formData.expires_at
-        ? new Date(formData.expires_at).toISOString()
-        : null,
-    } as Partial<Opportunity>);
-    if (error) {
-      setError("Failed to save");
+    const res = await workerFetch(`/api/opportunities/${oppId}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        ...formData,
+        expires_at: formData.expires_at
+          ? new Date(formData.expires_at).toISOString()
+          : null,
+      }),
+    });
+    if (!res.ok) {
       showToast("Failed to save changes", "error");
-    } else if (data) {
+    } else {
+      const data = await res.json();
       setOpportunity(data);
       showToast("Changes saved successfully", "success");
     }
     setIsSaving(false);
   };
 
-    if (isLoading) {
-        return (
-            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-                <Loader2 className="w-8 h-8 text-[#3182ce] animate-spin" />
-            </div>
-        );
-    }
+  if (authLoading || isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-[#3182ce] animate-spin" />
+      </div>
+    );
+  }
 
-    if (error || !opportunity) {
-        return (
-            <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
-                <p className="text-gray-500 mb-4">{error || "Opportunity not found"}</p>
-                <Link
-                    href={`/${slug}/opportunities`}
-                    className="text-[#3182ce] hover:underline"
-                >
-                    Go back
-                </Link>
-            </div>
-        );
-    }
+  if (error || !opportunity) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
+        <p className="text-gray-500 mb-4">{error || "Opportunity not found"}</p>
+        <Link href={`/${slug}/opportunities`} className="text-[#3182ce] hover:underline">
+          Go back
+        </Link>
+      </div>
+    );
+  }
 
-    // If user doesn't have access to edit opportunities, show upgrade prompt
-    if (!hasAccess) {
-        return (
-            <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center py-12">
-                <div className="text-center">
-                    <div className="w-20 h-20 bg-purple-100 rounded-2xl flex items-center justify-center mb-6">
-                        <Pencil className="w-10 h-10 text-purple-600" />
-                    </div>
-                    <h2 className="text-2xl font-bold text-gray-900 mb-4">Upgrade to Edit Opportunities</h2>
-                    <p className="text-gray-600 mb-8 max-w-xl">
-                        Your current plan ({opportunity?.company_id ? 'unknown' : 'free'} tier) doesn&apos;t include access to opportunity editing.
-                        Upgrade to modify opportunity details, requirements, and settings.
-                    </p>
-                    <button
-                        onClick={() => {
-                            // Navigate to opportunities page to show upgrade modal there
-                            window.location.href = `/${slug}/opportunities`;
-                        }}
-                        className="inline-flex items-center gap-2 px-6 py-3 bg-[#3182ce] text-white rounded-xl font-medium text-sm hover:bg-[#2c5cb8] transition-colors"
-                    >
-                        <DollarSign className="w-5 h-5" />
-                        Upgrade Plan
-                    </button>
-                </div>
-            </div>
-        );
-    }
+  if (!hasAccess) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center py-12">
+        <div className="text-center">
+          <div className="w-20 h-20 bg-purple-100 rounded-2xl flex items-center justify-center mb-6">
+            <Pencil className="w-10 h-10 text-purple-600" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">Upgrade to Edit Opportunities</h2>
+          <p className="text-gray-600 mb-8 max-w-xl">
+            Your current plan doesn&apos;t include access to opportunity editing.
+            Upgrade to modify opportunity details, requirements, and settings.
+          </p>
+          <button
+            onClick={() => { window.location.href = `/${slug}/opportunities`; }}
+            className="inline-flex items-center gap-2 px-6 py-3 bg-[#3182ce] text-white rounded-xl font-medium text-sm hover:bg-[#2c5cb8] transition-colors"
+          >
+            <DollarSign className="w-5 h-5" />
+            Upgrade Plan
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -197,10 +183,7 @@ export default function EditOpportunityPage({
         <Breadcrumb
           items={[
             { label: "Opportunities", href: `/${slug}/opportunities` },
-            {
-              label: opportunity?.title || "Opportunity",
-              href: `/${slug}/opportunities/${oppId}`,
-            },
+            { label: opportunity?.title || "Opportunity", href: `/${slug}/opportunities/${oppId}` },
             { label: "Edit", href: `/${slug}/opportunities/${oppId}/edit` },
           ]}
         />
@@ -212,9 +195,7 @@ export default function EditOpportunityPage({
                 <Briefcase className="w-6 h-6 text-purple-600" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gray-900">
-                  Edit Opportunity
-                </h1>
+                <h1 className="text-xl font-bold text-gray-900">Edit Opportunity</h1>
                 <p className="text-sm text-gray-500">{opportunity.title}</p>
               </div>
             </div>
@@ -231,11 +212,7 @@ export default function EditOpportunityPage({
                 disabled={isSaving}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-[#3182ce] text-white rounded-xl font-medium text-sm hover:bg-[#2c5cb8] transition-colors disabled:opacity-50"
               >
-                {isSaving ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Save className="w-4 h-4" />
-                )}
+                {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                 Save Changes
               </button>
             </div>
@@ -243,28 +220,20 @@ export default function EditOpportunityPage({
 
           <div className="grid gap-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Title
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Title</label>
               <input
                 type="text"
                 value={formData.title}
-                onChange={(e) =>
-                  setFormData({ ...formData, title: e.target.value })
-                }
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                 className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Short Description
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Short Description</label>
               <textarea
                 value={formData.description}
-                onChange={(e) =>
-                  setFormData({ ...formData, description: e.target.value })
-                }
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 rows={3}
                 className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none resize-none"
                 placeholder="Brief summary for listings..."
@@ -272,40 +241,28 @@ export default function EditOpportunityPage({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Full Description
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Full Description</label>
               <RichTextEditor
                 content={formData.full_description}
-                onChange={(html) =>
-                  setFormData({ ...formData, full_description: html })
-                }
+                onChange={(html) => setFormData({ ...formData, full_description: html })}
                 placeholder="Detailed description with requirements, responsibilities..."
               />
             </div>
 
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Requirements
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Requirements</label>
                 <RichTextEditor
                   content={formData.requirements}
-                  onChange={(html) =>
-                    setFormData({ ...formData, requirements: html })
-                  }
+                  onChange={(html) => setFormData({ ...formData, requirements: html })}
                   placeholder="List requirements..."
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Benefits
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Benefits</label>
                 <RichTextEditor
                   content={formData.benefits}
-                  onChange={(html) =>
-                    setFormData({ ...formData, benefits: html })
-                  }
+                  onChange={(html) => setFormData({ ...formData, benefits: html })}
                   placeholder="List benefits..."
                 />
               </div>
@@ -313,33 +270,23 @@ export default function EditOpportunityPage({
 
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Type
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Type</label>
                 <select
                   value={formData.type}
-                  onChange={(e) =>
-                    setFormData({ ...formData, type: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, type: e.target.value })}
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none bg-white"
                 >
                   <option value="">Select type</option>
                   {OPPORTUNITY_TYPES.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
+                    <option key={t} value={t}>{t}</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Status
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Status</label>
                 <select
                   value={formData.status}
-                  onChange={(e) =>
-                    setFormData({ ...formData, status: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, status: e.target.value })}
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none bg-white"
                 >
                   <option value="draft">Draft</option>
@@ -356,22 +303,16 @@ export default function EditOpportunityPage({
                 <input
                   type="text"
                   value={formData.location}
-                  onChange={(e) =>
-                    setFormData({ ...formData, location: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Country
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Country</label>
                 <input
                   type="text"
                   value={formData.country}
-                  onChange={(e) =>
-                    setFormData({ ...formData, country: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, country: e.target.value })}
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none"
                 />
               </div>
@@ -385,9 +326,7 @@ export default function EditOpportunityPage({
                 <input
                   type="text"
                   value={formData.salary}
-                  onChange={(e) =>
-                    setFormData({ ...formData, salary: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, salary: e.target.value })}
                   placeholder="e.g. $50,000 - $80,000"
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none"
                 />
@@ -399,9 +338,7 @@ export default function EditOpportunityPage({
                 <input
                   type="date"
                   value={formData.expires_at}
-                  onChange={(e) =>
-                    setFormData({ ...formData, expires_at: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, expires_at: e.target.value })}
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none"
                 />
               </div>
@@ -409,41 +346,26 @@ export default function EditOpportunityPage({
 
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Work Mode
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Work Mode</label>
                 <select
                   value={formData.work_mode}
-                  onChange={(e) =>
-                    setFormData({ ...formData, work_mode: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, work_mode: e.target.value })}
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none bg-white"
                 >
                   {WORK_MODES.map((w) => (
-                    <option key={w} value={w}>
-                      {w}
-                    </option>
+                    <option key={w} value={w}>{w}</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Employment Type
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Employment Type</label>
                 <select
                   value={formData.employment_type}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      employment_type: e.target.value,
-                    })
-                  }
+                  onChange={(e) => setFormData({ ...formData, employment_type: e.target.value })}
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none bg-white"
                 >
                   {EMPLOYMENT_TYPES.map((e) => (
-                    <option key={e} value={e}>
-                      {e}
-                    </option>
+                    <option key={e} value={e}>{e}</option>
                   ))}
                 </select>
               </div>
@@ -457,12 +379,7 @@ export default function EditOpportunityPage({
                 <input
                   type="url"
                   value={formData.application_link}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      application_link: e.target.value,
-                    })
-                  }
+                  onChange={(e) => setFormData({ ...formData, application_link: e.target.value })}
                   placeholder="https://... or 'apply' for internal form"
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none"
                 />
@@ -474,12 +391,7 @@ export default function EditOpportunityPage({
                 <input
                   type="email"
                   value={formData.contact_email}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      contact_email: e.target.value,
-                    })
-                  }
+                  onChange={(e) => setFormData({ ...formData, contact_email: e.target.value })}
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none"
                 />
               </div>

@@ -11,7 +11,7 @@ import {
   Save,
 } from "lucide-react";
 import { Event, EVENT_FORMATS } from "@/types/company";
-import { getEventById, updateEvent } from "@/lib/supabase";
+import { getEventById, workerFetch } from "@/lib/worker";
 import { checkAuthClient, getAuthRedirectUrl } from "@/lib/auth-client";
 import Navbar from "@/components/parts/Navbar";
 import Breadcrumb from "@/components/parts/Breadcrumb";
@@ -113,23 +113,27 @@ export default function EditEventPage({ params }: Props) {
       ? new Date(formData.end_date + (formData.end_time ? "T" + formData.end_time : "T00:00")).toISOString()
       : null;
 
-    const { data, error } = await updateEvent(eventId, {
-      title: formData.title,
-      location: formData.location || null,
-      format: formData.format as Event["format"],
-      status: formData.status as Event["status"],
-      publish_status: formData.publish_status,
-      start_date: startDateTime,
-      end_date: endDateTime,
-      seo_description: formData.seo_description || null,
-      full_description: formData.full_description || null,
-      tags: formData.tags || null,
-      external_link: formData.registration_type === "external" ? formData.external_link || null : "register",
+    const res = await workerFetch(`/api/events/${eventId}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        title: formData.title,
+        location: formData.location || null,
+        format: formData.format as Event["format"],
+        status: formData.status as Event["status"],
+        publish_status: formData.publish_status,
+        start_date: startDateTime,
+        end_date: endDateTime,
+        seo_description: formData.seo_description || null,
+        full_description: formData.full_description || null,
+        tags: formData.tags || null,
+        external_link: formData.registration_type === "external" ? formData.external_link || null : "register",
+      }),
     });
-    if (error) {
+    if (!res.ok) {
       setError("Failed to save");
       showToast("Failed to save changes", "error");
-    } else if (data) {
+    } else {
+      const data = await res.json();
       setEvent(data);
       showToast("Changes saved successfully", "success");
     }

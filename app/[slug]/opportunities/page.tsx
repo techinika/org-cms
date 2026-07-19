@@ -13,7 +13,7 @@ import {
   DollarSign,
 } from "lucide-react";
 import { FeaturedStartup, Opportunity } from "@/types/company";
-import { getCompanyBySlug, getCompanyOpportunities, deleteOpportunity } from "@/lib/supabase";
+import { getCompanyBySlug, getCompanyOpportunities, workerFetch } from "@/lib/worker";
 import { checkAuthClient, getAuthRedirectUrl } from "@/lib/auth-client";
 import Navbar from "@/components/parts/Navbar";
 import Breadcrumb from "@/components/parts/Breadcrumb";
@@ -80,8 +80,8 @@ export default function CompanyOpportunitiesPage({
 
   const handleDeleteOpportunity = async (oppId: string) => {
     setDeletingId(oppId);
-    const { error } = await deleteOpportunity(oppId);
-    if (!error) {
+    const res = await workerFetch(`/api/opportunities/${oppId}`, { method: "DELETE" });
+    if (res.ok) {
       setOpportunities(opportunities.filter(o => o.id !== oppId));
       showToast("Opportunity deleted successfully", "success");
     } else {
@@ -94,10 +94,10 @@ export default function CompanyOpportunitiesPage({
   const handleConfirmDelete = async () => {
     if (!confirmDelete.opp) return;
     setDeletingId(confirmDelete.opp.id);
-    const { error } = await deleteOpportunity(confirmDelete.opp.id);
+    const res = await workerFetch(`/api/opportunities/${confirmDelete.opp.id}`, { method: "DELETE" });
     setDeletingId(null);
     setConfirmDelete({ open: false, opp: null });
-    if (!error) {
+    if (res.ok) {
       setOpportunities(opportunities.filter(o => o.id !== confirmDelete.opp!.id));
       showToast("Opportunity deleted successfully", "success");
     } else {

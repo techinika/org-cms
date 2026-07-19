@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { use } from "react";
 import Link from "next/link";
 import {
@@ -12,13 +12,13 @@ import {
   Users,
   CreditCard,
 } from "lucide-react";
-import { FeaturedStartup, OpportunityTier } from "@/types/company";
-import { getCompanyBySlug } from "@/lib/supabase";
-import { checkAuthClient, getAuthRedirectUrl } from "@/lib/auth-client";
+import { FeaturedStartup } from "@/types/company";
+import { getCompanyBySlug } from "@/lib/worker";
+import { useAuth } from "@/hooks/useAuth";
 import Navbar from "@/components/parts/Navbar";
 import Breadcrumb from "@/components/parts/Breadcrumb";
 import CompanyLogo from "@/components/ui/CompanyLogo";
-import PricingModal from "@/components/opportunities/PricingModal"; // This will be created later
+import PricingModal from "@/components/opportunities/PricingModal";
 
 export default function CompanyPage({
   params,
@@ -26,45 +26,30 @@ export default function CompanyPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = use(params);
+  const { user, isLoading: authLoading } = useAuth();
   const [company, setCompany] = useState<FeaturedStartup | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showPricingModal, setShowPricingModal] = useState(false);
-  const [user, setUser] = useState<{ id: string; email: string; name: string; avatar: string | null; isAdmin: boolean } | null>(null);
 
-  const fetchCompany = async () => {
+  const fetchCompany = useCallback(async () => {
     setIsLoading(true);
     const { data, error } = await getCompanyBySlug(slug);
     if (error || !data) {
       setError("Company not found");
-      setIsLoading(false);
-      return;
+    } else {
+      setCompany(data);
     }
-    setCompany(data);
     setIsLoading(false);
-  };
-
-  useEffect(() => {
-    const checkAuthAndFetch = async () => {
-      const authResult = await checkAuthClient();
-      if (!authResult.authenticated || !authResult.user) {
-        window.location.replace(getAuthRedirectUrl());
-        return;
-      }
-      setUser({
-        id: authResult.user.id,
-        email: authResult.user.email,
-        name: authResult.user.name,
-        avatar: authResult.user.avatar ?? null,
-        isAdmin: authResult.user.isAdmin ?? false,
-      });
-      await fetchCompany();
-    };
-    
-    checkAuthAndFetch();
   }, [slug]);
 
-  if (isLoading) {
+  useEffect(() => {
+    if (!authLoading && user) {
+      fetchCompany();
+    }
+  }, [authLoading, user, fetchCompany]);
+
+  if (authLoading || isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <Loader2 className="w-8 h-8 text-[#3182ce] animate-spin" />

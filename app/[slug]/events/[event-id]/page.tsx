@@ -21,7 +21,7 @@ import {
   DollarSign,
 } from "lucide-react";
 import { Event } from "@/types/company";
-import { getEventById } from "@/lib/supabase";
+import { getEventById } from "@/lib/worker";
 import { checkAuthClient, getAuthRedirectUrl } from "@/lib/auth-client";
 import Navbar from "@/components/parts/Navbar";
 import Breadcrumb from "@/components/parts/Breadcrumb";

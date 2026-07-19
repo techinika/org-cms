@@ -13,12 +13,11 @@ import {
   Users,
 } from "lucide-react";
 import { Event, EventSchedule } from "@/types/company";
-import { getEventById, getEventSchedules, createEventSchedule, updateEventSchedule, deleteEventSchedule } from "@/lib/supabase";
+import { getEventById, getEventSchedules, getAllSpeakers, workerFetch } from "@/lib/worker";
 import { checkAuthClient, getAuthRedirectUrl } from "@/lib/auth-client";
 import Navbar from "@/components/parts/Navbar";
 import Breadcrumb from "@/components/parts/Breadcrumb";
 import { useToast } from "@/components/ui/Toast";
-import { supabase } from "@/lib/supabase";
 
 interface EventSpeaker {
   id: string;
@@ -119,22 +118,24 @@ export default function EventAgendaPage({ params }: Props) {
       const { data: schedulesData } = await getEventSchedules(eventId);
       setSchedules(schedulesData || []);
 
-      const { data: eventSpeakersRaw } = await supabase
-        .from("event_speakers")
-        .select("id, speaker_id")
-        .eq("event_id", eventId);
-      const speakerIds = (eventSpeakersRaw || []).map((es: { id: string; speaker_id: string }) => es.speaker_id);
-      if (speakerIds.length > 0) {
-        const { data: speakersData } = await supabase
-          .from("speakers")
-          .select("id, name, title, asset:assets!image_ref(url)")
-          .in("id", speakerIds);
-        type SpeakerRow = { id: string; name: string; title: string | null; asset: { url: string }[] | null };
-        type SpeakerMapped = { id: string; name: string; title: string | null; asset: { url: string } | null };
-        const speakerMap = new Map<string, SpeakerMapped>((speakersData || []).map((s: SpeakerRow) => [
+      const { data: allSpeakersData } = await getAllSpeakers();
+      const allSpeakersList = (allSpeakersData || []) as Array<{
+        id: string;
+        name: string;
+        title: string | null;
+        asset?: { url: string } | null;
+      }>;
+      type SpeakerMapped = { id: string; name: string; title: string | null; asset: { url: string } | null };
+      const speakerMap = new Map<string, SpeakerMapped>(
+        allSpeakersList.map((s) => [
           s.id,
-          { id: s.id, name: s.name, title: s.title, asset: Array.isArray(s.asset) ? s.asset[0] : s.asset },
-        ]));
+          { id: s.id, name: s.name, title: s.title, asset: Array.isArray(s.asset) ? s.asset[0] : (s.asset || null) },
+        ])
+      );
+
+      const esRes = await workerFetch(`/api/events/${eventId}/speakers`);
+      if (esRes.ok) {
+        const eventSpeakersRaw = await esRes.json();
         setEventSpeakers(
           ((eventSpeakersRaw || []) as { id: string; speaker_id: string }[]).map((es) => ({
             id: es.id,
@@ -176,15 +177,21 @@ export default function EventAgendaPage({ params }: Props) {
       order_index: form.order_index || 0,
     };
 
-    let error;
+    let res;
     if (editingSchedule) {
-      ({ error } = await updateEventSchedule(editingSchedule.id, data));
+      res = await workerFetch(`/api/events/${eventId}/schedules/${editingSchedule.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      });
     } else {
-      ({ error } = await createEventSchedule(data));
+      res = await workerFetch(`/api/events/${eventId}/schedules`, {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
     }
 
     setSaving(false);
-    if (error) {
+    if (!res.ok) {
       showToast("Failed to save session", "error");
     } else {
       showToast(editingSchedule ? "Session updated" : "Session created", "success");
@@ -195,8 +202,8 @@ export default function EventAgendaPage({ params }: Props) {
 
   const handleDelete = async (id: string) => {
     setSaving(true);
-    const { error } = await deleteEventSchedule(id);
-    if (error) {
+    const res = await workerFetch(`/api/events/${eventId}/schedules/${id}`, { method: "DELETE" });
+    if (!res.ok) {
       showToast("Failed to delete", "error");
     } else {
       showToast("Session deleted", "success");

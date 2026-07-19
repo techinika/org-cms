@@ -35,7 +35,7 @@ export interface FeaturedStartup {
 }
 
 export type UserCompanyRole = "creator" | "manager" | "events_manager" | "opportunities_manager" | "employee";
-export type UserCompanyStatus = string;
+export type UserCompanyStatus = "confirmation_pending" | "accepted" | "active" | "rejected";
 
 export interface UserCompany {
   id: string;
@@ -290,42 +290,6 @@ export interface Asset {
   created_at: string;
   updated_at?: string;
 }
-
-export const INDUSTRIES = [
-  "Agriculture",
-  "Artificial Intelligence",
-  "Automotive",
-  "Banking",
-  "Biotechnology",
-  "Blockchain",
-  "Clean Energy",
-  "Cloud Computing",
-  "Consumer Goods",
-  "Cybersecurity",
-  "Data Science",
-  "E-commerce",
-  "Education",
-  "Fintech",
-  "Food & Beverage",
-  "Gaming",
-  "Healthcare",
-  "Human Resources",
-  "Insurance",
-  "Internet of Things",
-  "Logistics",
-  "Manufacturing",
-  "Media & Entertainment",
-  "Mining",
-  "Pharmaceuticals",
-  "Real Estate",
-  "Retail",
-  "SaaS",
-  "Sports",
-  "Telecommunications",
-  "Tourism",
-  "Transportation",
-  "Other",
-];
 
 export interface Industry {
   id: string;

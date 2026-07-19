@@ -15,12 +15,7 @@ import {
   DollarSign,
 } from "lucide-react";
 import { Opportunity } from "@/types/company";
-import {
-  getOpportunityById,
-  updateOpportunity,
-  deleteOpportunity,
-  getCompanyBySlug,
-} from "@/lib/supabase";
+import { getOpportunityById, getCompanyBySlug, workerFetch } from "@/lib/worker";
 import { checkAuthClient, getAuthRedirectUrl } from "@/lib/auth-client";
 import Navbar from "@/components/parts/Navbar";
 import Breadcrumb from "@/components/parts/Breadcrumb";
@@ -96,30 +91,30 @@ export default function OpportunityPage({
       opportunity?.application_link &&
       opportunity.application_link !== "apply"
     ) {
-      await updateOpportunity(oppId, {
-        external_link_clicks: (opportunity?.external_link_clicks || 0) + 1,
-      } as Partial<Opportunity>);
-      setOpportunity((prev) =>
-        prev
-          ? {
-              ...prev,
-              external_link_clicks: (prev.external_link_clicks || 0) + 1,
-            }
-          : null,
-      );
+      const res = await workerFetch(`/api/opportunities/${oppId}/click`, { method: "POST" });
+      if (res.ok) {
+        setOpportunity((prev) =>
+          prev
+            ? {
+                ...prev,
+                external_link_clicks: (prev.external_link_clicks || 0) + 1,
+              }
+            : null,
+        );
+      }
     }
   };
 
   const handleDelete = async () => {
     setDeletingId(oppId);
-    const { error } = await deleteOpportunity(oppId);
-    if (error) {
+    const res = await workerFetch(`/api/opportunities/${oppId}`, { method: "DELETE" });
+    if (!res.ok) {
       setError("Failed to delete opportunity");
       showToast("Failed to delete opportunity", "error");
     }
     setDeletingId(null);
     setShowDeleteModal(false);
-    if (!error) {
+    if (res.ok) {
       showToast("Opportunity deleted successfully", "success");
       window.location.href = `/${slug}/opportunities`;
     }

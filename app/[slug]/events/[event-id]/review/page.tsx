@@ -17,12 +17,11 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { Event, EventSchedule, EventTicket, FeaturedStartup } from "@/types/company";
-import { getEventById, getEventSchedules, getEventTickets, updateEvent } from "@/lib/supabase";
+import { getEventById, getEventSchedules, getEventTickets, getAssetById, workerFetch } from "@/lib/worker";
 import { checkAuthClient, getAuthRedirectUrl } from "@/lib/auth-client";
 import Navbar from "@/components/parts/Navbar";
 import Breadcrumb from "@/components/parts/Breadcrumb";
 import { useToast } from "@/components/ui/Toast";
-import { supabase } from "@/lib/supabase";
 import ConfirmationModal from "@/components/ui/ConfirmationModal";
 import CompanyLogo from "@/components/ui/CompanyLogo";
 
@@ -72,21 +71,23 @@ export default function EventReviewPage({ params }: Props) {
     const { data: eventData } = await getEventById(eventId);
     if (eventData) setEvent(eventData);
 
-    const { data: speakersData } = await supabase
-      .from("event_speakers")
-      .select("*, speaker:speakers(*, company:featured_startups(*), asset:assets!image_ref(url))")
-      .eq("event_id", eventId);
-    setSpeakers(speakersData || []);
+    const speakersRes = await workerFetch(`/api/events/${eventId}/speakers`);
+    if (speakersRes.ok) {
+      setSpeakers(await speakersRes.json());
+    } else {
+      setSpeakers([]);
+    }
 
-    const { data: partnersData } = await supabase
-      .from("event_companies")
-      .select("*, company:featured_startups(*)")
-      .eq("event_id", eventId);
+    const partnersRes = await workerFetch(`/api/events/${eventId}/partners`);
+    let partnersData: EventCompany[] = [];
+    if (partnersRes.ok) {
+      partnersData = await partnersRes.json();
+    }
     
     if (partnersData) {
       for (const p of partnersData) {
         if (p.company?.image_ref) {
-          const { data: asset } = await supabase.from("assets").select("url").eq("id", p.company.image_ref).single();
+          const { data: asset } = await getAssetById(p.company.image_ref);
           if (asset) {
             p.company.logo_url = asset.url;
           }
@@ -135,10 +136,13 @@ export default function EventReviewPage({ params }: Props) {
     }
 
     setPublishing(true);
-    const { error } = await updateEvent(eventId, { publish_status: "published" });
+    const res = await workerFetch(`/api/events/${eventId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ publish_status: "published" }),
+    });
     setPublishing(false);
 
-    if (error) {
+    if (!res.ok) {
       showToast("Failed to publish event", "error");
     } else {
       showToast("Event published successfully", "success");
@@ -149,10 +153,13 @@ export default function EventReviewPage({ params }: Props) {
 
   const handleUnpublish = async () => {
     setPublishing(true);
-    const { error } = await updateEvent(eventId, { publish_status: "draft" });
+    const res = await workerFetch(`/api/events/${eventId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ publish_status: "draft" }),
+    });
     setPublishing(false);
 
-    if (error) {
+    if (!res.ok) {
       showToast("Failed to unpublish event", "error");
     } else {
       showToast("Event moved back to draft", "success");

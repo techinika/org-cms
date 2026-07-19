@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Building2 } from "lucide-react";
 import { FeaturedStartup } from "@/types/company";
+import { getAssetById } from "@/lib/worker";
 
 interface CompanyLogoProps {
   company: FeaturedStartup;
@@ -22,16 +23,7 @@ export default function CompanyLogo({ company, className = "", size = "md" }: Co
       }
       
       try {
-        const { createClient } = await import("@supabase/supabase-js");
-        const supabase = createClient(
-          process.env.NEXT_PUBLIC_PROJECT_URL!,
-          process.env.NEXT_PUBLIC_API_KEY!
-        );
-        const { data: asset } = await supabase
-          .from("assets")
-          .select("url")
-          .eq("id", company.image_ref)
-          .single();
+        const { data: asset } = await getAssetById(company.image_ref);
         setLogoUrl(asset?.url || null);
       } catch (error) {
         console.error("Failed to fetch company logo:", error);

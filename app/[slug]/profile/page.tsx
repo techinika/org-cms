@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { use } from "react";
 import Link from "next/link";
 import {
@@ -17,8 +17,8 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { FeaturedStartup, Industry } from "@/types/company";
-import { getCompanyBySlug, updateCompany, removeUserCompany, getAllIndustries, getCompanyIndustries, setCompanyIndustries } from "@/lib/supabase";
-import { checkAuthClient, getAuthRedirectUrl } from "@/lib/auth-client";
+import { getCompanyBySlug, updateCompany, removeUserCompany, getAllIndustries, getCompanyIndustries, setCompanyIndustries } from "@/lib/worker";
+import { useAuth } from "@/hooks/useAuth";
 import Navbar from "@/components/parts/Navbar";
 import Breadcrumb from "@/components/parts/Breadcrumb";
 import ConfirmationModal from "@/components/ui/ConfirmationModal";
@@ -31,6 +31,7 @@ export default function CompanyProfilePage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = use(params);
+  const { user, isLoading: authLoading } = useAuth();
   const { showToast } = useToast();
   const [company, setCompany] = useState<FeaturedStartup | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -38,14 +39,6 @@ export default function CompanyProfilePage({
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [user, setUser] = useState<{
-    name: string;
-    email: string;
-    id: string;
-    avatar?: string;
-    profilePicture?: string | null;
-  } | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -58,34 +51,13 @@ export default function CompanyProfilePage({
   const [industries, setIndustries] = useState<Industry[]>([]);
   const [selectedIndustryIds, setSelectedIndustryIds] = useState<string[]>([]);
 
-  useEffect(() => {
-    const checkAuthAndFetch = async () => {
-      const authResult = await checkAuthClient();
-      if (!authResult.authenticated || !authResult.user) {
-        window.location.replace(getAuthRedirectUrl());
-        return;
-      }
-      setUser({
-        id: authResult.user.id,
-        name: authResult.user.name,
-        email: authResult.user.email,
-        avatar: authResult.user.avatar,
-        profilePicture: authResult.profilePicture,
-      });
-      await fetchCompany();
-    };
-    
-    checkAuthAndFetch();
-  }, [slug]);
-
-  const fetchCompany = async () => {
+  const fetchCompany = useCallback(async () => {
     setIsLoading(true);
-    const [{ data, error }, { data: industriesData }, { data: companyIndustryIds }] = await Promise.all([
+    const [{ data, error }, { data: industriesData }] = await Promise.all([
       getCompanyBySlug(slug),
       getAllIndustries(),
-      Promise.resolve({ data: [] as string[] }),
     ]);
-    
+
     if (error || !data) {
       setError("Company not found");
       setIsLoading(false);
@@ -101,35 +73,36 @@ export default function CompanyProfilePage({
       location: data.location || "",
       tags: data.tags || "",
     });
-    
     setIndustries(industriesData || []);
-    
+
     if (data.id) {
       const { data: ids } = await getCompanyIndustries(data.id);
       setSelectedIndustryIds(ids || []);
     }
-    
     setIsLoading(false);
-  };
+  }, [slug]);
+
+  useEffect(() => {
+    if (!authLoading && user) {
+      fetchCompany();
+    }
+  }, [authLoading, user, fetchCompany]);
 
   const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !company) return;
     setIsUploading(true);
     try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("folder", "companies");
+      if (user?.id) fd.append("authorId", user.id);
+
       const result = await fetch("/api/upload-image", {
         method: "POST",
-        body: (() => {
-          const fd = new FormData();
-          fd.append("file", file);
-          fd.append("folder", "companies");
-          if (user?.id) {
-            fd.append("authorId", user.id);
-          }
-          return fd;
-        })(),
+        body: fd,
       }).then(r => r.json());
-      
+
       if (result.asset_id) {
         const { data: updated } = await updateCompany(company.id, { logo_url: result.url, image_ref: result.asset_id });
         if (updated) {
@@ -154,11 +127,11 @@ export default function CompanyProfilePage({
       ...formData,
       ...updates,
     });
-    
+
     if (!error && company.id) {
       await setCompanyIndustries(company.id, selectedIndustryIds);
     }
-    
+
     if (error) {
       setError("Failed to save");
       showToast("Failed to save changes", "error");
@@ -173,9 +146,7 @@ export default function CompanyProfilePage({
 
   const handleLeaveCompany = async () => {
     if (!company || !user) return;
-    setDeletingId(company.id);
     const { error } = await removeUserCompany(user.id, company.id);
-    setDeletingId(null);
     setShowDeleteModal(false);
     if (error) {
       setError("Failed to leave company");
@@ -186,7 +157,7 @@ export default function CompanyProfilePage({
     }
   };
 
-  if (isLoading) {
+  if (authLoading || isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <Loader2 className="w-8 h-8 text-[#3182ce] animate-spin" />
@@ -271,128 +242,113 @@ export default function CompanyProfilePage({
             </div>
 
             <div className="grid gap-6">
-    {company.description && (
-      <div>
-        <h2 className="text-sm font-semibold text-gray-900 mb-2">
-          About
-        </h2>
-        <p className="text-gray-600 leading-relaxed">
-          {company.description}
-        </p>
-      </div>
-    )}
-    
-    {/* Subscription Analytics */}
-    {company.opportunity_tier && (
-      <div className="mt-8">
-        <h2 className="text-sm font-semibold text-gray-900 mb-2">
-          Subscription Analytics
-        </h2>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
-            <h3 className="text-xs font-medium text-gray-500 mb-2">Current Tier</h3>
-            <p className={`text-lg font-medium ${company.opportunity_tier === "advanced" ? "text-green-600" : company.opportunity_tier === "basic" ? "text-blue-600" : "text-gray-500"} capitalize`}>
-              {company.opportunity_tier} tier
-            </p>
-          </div>
-          
-          <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
-            <h3 className="text-xs font-medium text-gray-500 mb-2">Listings Usage</h3>
-            <div className="space-y-2">
-              {company.opportunity_tier === "basic" && (
-                <>
-                  <p className="text-sm flex justify-between">
-                    <span>Used:</span>
-                    <span className="font-medium">{company.opportunity_listings_used || 0}</span>
-                  </p>
-                  <p className="text-sm flex justify-between">
-                    <span>Available:</span>
-                    <span className="font-medium">
-                      {Math.max(0, (company.opportunity_listings_purchased || 0) - (company.opportunity_listings_used || 0))}
-                    </span>
-                  </p>
-                  <p className="text-sm flex justify-between">
-                    <span>Purchased:</span>
-                    <span className="font-medium">{company.opportunity_listings_purchased || 0}</span>
-                  </p>
-                </>
+              {company.description && (
+                <div>
+                  <h2 className="text-sm font-semibold text-gray-900 mb-2">About</h2>
+                  <p className="text-gray-600 leading-relaxed">{company.description}</p>
+                </div>
               )}
-              {company.opportunity_tier === "advanced" && (
-                <p className="text-sm text-green-600">
-                  Unlimited listings
-                </p>
+
+              {company.opportunity_tier && (
+                <div className="mt-8">
+                  <h2 className="text-sm font-semibold text-gray-900 mb-2">Subscription Analytics</h2>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
+                      <h3 className="text-xs font-medium text-gray-500 mb-2">Current Tier</h3>
+                      <p className={`text-lg font-medium ${company.opportunity_tier === "advanced" ? "text-green-600" : company.opportunity_tier === "basic" ? "text-blue-600" : "text-gray-500"} capitalize`}>
+                        {company.opportunity_tier} tier
+                      </p>
+                    </div>
+
+                    <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
+                      <h3 className="text-xs font-medium text-gray-500 mb-2">Listings Usage</h3>
+                      <div className="space-y-2">
+                        {company.opportunity_tier === "basic" && (
+                          <>
+                            <p className="text-sm flex justify-between">
+                              <span>Used:</span>
+                              <span className="font-medium">{company.opportunity_listings_used || 0}</span>
+                            </p>
+                            <p className="text-sm flex justify-between">
+                              <span>Available:</span>
+                              <span className="font-medium">
+                                {Math.max(0, (company.opportunity_listings_purchased || 0) - (company.opportunity_listings_used || 0))}
+                              </span>
+                            </p>
+                            <p className="text-sm flex justify-between">
+                              <span>Purchased:</span>
+                              <span className="font-medium">{company.opportunity_listings_purchased || 0}</span>
+                            </p>
+                          </>
+                        )}
+                        {company.opportunity_tier === "advanced" && (
+                          <p className="text-sm text-green-600">Unlimited listings</p>
+                        )}
+                        {company.opportunity_tier === "free" && (
+                          <p className="text-sm text-red-500">Upgrade to access listings</p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
+                      <h3 className="text-xs font-medium text-gray-500 mb-2">Subscription Status</h3>
+                      {company.subscription_expires_at ? (
+                        <>
+                          <p className="text-sm flex justify-between">
+                            <span>Expires:</span>
+                            <span className="font-medium">{new Date(company.subscription_expires_at).toLocaleDateString()}</span>
+                          </p>
+                          <p className="text-sm flex justify-between">
+                            <span>Status:</span>
+                            <span className={`font-medium ${new Date(company.subscription_expires_at) > new Date() ? "text-green-600" : "text-red-500"}`}>
+                              {new Date(company.subscription_expires_at) > new Date() ? "Active" : "Expired"}
+                            </span>
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-sm text-gray-500">No active subscription</p>
+                      )}
+                    </div>
+
+                    {company.opportunity_tier !== "advanced" && (
+                      <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 pt-6">
+                        <h3 className="text-xs font-medium text-gray-500 mb-2">Upgrade Benefits</h3>
+                        {company.opportunity_tier === "free" ? (
+                          <>
+                            <p className="text-sm mb-2">Upgrade to Basic for:</p>
+                            <ul className="list-disc list-inside text-sm space-y-1">
+                              <li>5 opportunity listings</li>
+                              <li>Access to applications dashboard</li>
+                              <li>AI applicant comparison</li>
+                              <li>Email notifications</li>
+                            </ul>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-sm mb-2">Upgrade to Advanced for:</p>
+                            <ul className="list-disc list-inside text-sm space-y-1">
+                              <li>Unlimited opportunity listings</li>
+                              <li>Full access to applications dashboard</li>
+                              <li>AI applicant comparison</li>
+                              <li>Email notifications</li>
+                              <li>Priority support</li>
+                            </ul>
+                          </>
+                        )}
+                        <div className="mt-4">
+                          <Link
+                            href={`/${slug}/opportunities`}
+                            className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 bg-[#3182ce] text-white rounded-xl font-medium text-sm hover:bg-[#2c5cb8] transition-colors"
+                          >
+                            Upgrade Subscription
+                            <ArrowRight className="w-4 h-4" />
+                          </Link>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
               )}
-              {company.opportunity_tier === "free" && (
-                <p className="text-sm text-red-500">
-                  Upgrade to access listings
-                </p>
-              )}
-            </div>
-          </div>
-          
-          <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
-            <h3 className="text-xs font-medium text-gray-500 mb-2">Subscription Status</h3>
-            {company.subscription_expires_at ? (
-              <>
-                <p className="text-sm flex justify-between">
-                  <span>Expires:</span>
-                  <span className="font-medium">
-                    {new Date(company.subscription_expires_at).toLocaleDateString()}
-                  </span>
-                </p>
-                <p className="text-sm flex justify-between">
-                  <span>Status:</span>
-                  <span className={`font-medium ${new Date(company.subscription_expires_at) > new Date() ? "text-green-600" : "text-red-500"}`}>
-                    {new Date(company.subscription_expires_at) > new Date() ? "Active" : "Expired"}
-                  </span>
-                </p>
-              </>
-            ) : (
-                <p className="text-sm text-gray-500">
-                  No active subscription
-                </p>
-              )}
-          </div>
-          
-          {company.opportunity_tier !== "advanced" && (
-            <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 pt-6">
-              <h3 className="text-xs font-medium text-gray-500 mb-2">Upgrade Benefits</h3>
-              {company.opportunity_tier === "free" ? (
-                <>
-                  <p className="text-sm mb-2">Upgrade to Basic for:</p>
-                  <ul className="list-disc list-inside text-sm space-y-1">
-                    <li>5 opportunity listings</li>
-                    <li>Access to applications dashboard</li>
-                    <li>AI applicant comparison</li>
-                    <li>Email notifications</li>
-                  </ul>
-                </>
-              ) : (
-                <>
-                  <p className="text-sm mb-2">Upgrade to Advanced for:</p>
-                  <ul className="list-disc list-inside text-sm space-y-1">
-                    <li>Unlimited opportunity listings</li>
-                    <li>Full access to applications dashboard</li>
-                    <li>AI applicant comparison</li>
-                    <li>Email notifications</li>
-                    <li>Priority support</li>
-                  </ul>
-                </>
-              )}
-              <div className="mt-4">
-                <Link
-                  href={`/${slug}/opportunities`}
-                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 bg-[#3182ce] text-white rounded-xl font-medium text-sm hover:bg-[#2c5cb8] transition-colors"
-                >
-                  Upgrade Subscription
-                  <ArrowRight className="w-4 h-4" />
-                </Link>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    )}
 
               <div className="grid sm:grid-cols-2 gap-4">
                 {company.location && (
@@ -402,9 +358,7 @@ export default function CompanyProfilePage({
                     </div>
                     <div>
                       <p className="text-xs text-gray-500">Location</p>
-                      <p className="text-sm font-medium text-gray-900">
-                        {company.location}
-                      </p>
+                      <p className="text-sm font-medium text-gray-900">{company.location}</p>
                     </div>
                   </div>
                 )}
@@ -416,9 +370,7 @@ export default function CompanyProfilePage({
                     </div>
                     <div>
                       <p className="text-xs text-gray-500">Country</p>
-                      <p className="text-sm font-medium text-gray-900">
-                        {company.country}
-                      </p>
+                      <p className="text-sm font-medium text-gray-900">{company.country}</p>
                     </div>
                   </div>
                 )}
@@ -450,9 +402,7 @@ export default function CompanyProfilePage({
                     </div>
                     <div>
                       <p className="text-xs text-gray-500">Email</p>
-                      <p className="text-sm font-medium text-gray-900">
-                        {company.email}
-                      </p>
+                      <p className="text-sm font-medium text-gray-900">{company.email}</p>
                     </div>
                   </div>
                 )}
@@ -463,47 +413,33 @@ export default function CompanyProfilePage({
 
         <div className="mt-6 bg-white rounded-2xl border border-gray-200 p-6">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-semibold text-gray-900">
-              Edit Company Profile
-            </h2>
+            <h2 className="text-lg font-semibold text-gray-900">Edit Company Profile</h2>
             <button
               onClick={handleSave}
               disabled={isSaving}
               className="inline-flex items-center gap-2 px-4 py-2 bg-[#3182ce] text-white rounded-xl font-medium text-sm hover:bg-[#2c5cb8] transition-colors disabled:opacity-50"
             >
-              {isSaving ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Save className="w-4 h-4" />
-              )}
+              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               Save Changes
             </button>
           </div>
 
           <div className="grid gap-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Company Name
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Company Name</label>
               <input
                 type="text"
                 value={formData.name}
-                onChange={(e) =>
-                  setFormData({ ...formData, name: e.target.value })
-                }
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none transition-all"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Description / Bio
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Description / Bio</label>
               <textarea
                 value={formData.description}
-                onChange={(e) =>
-                  setFormData({ ...formData, description: e.target.value })
-                }
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 rows={4}
                 className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none transition-all resize-none"
                 placeholder="Tell people about your company..."
@@ -513,30 +449,24 @@ export default function CompanyProfilePage({
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  <Globe className="w-4 h-4 inline mr-1" />
-                  Website
+                  <Globe className="w-4 h-4 inline mr-1" /> Website
                 </label>
                 <input
                   type="url"
                   value={formData.website}
-                  onChange={(e) =>
-                    setFormData({ ...formData, website: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, website: e.target.value })}
                   placeholder="https://example.com"
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none transition-all"
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  <Mail className="w-4 h-4 inline mr-1" />
-                  Email
+                  <Mail className="w-4 h-4 inline mr-1" /> Email
                 </label>
                 <input
                   type="email"
                   value={formData.email}
-                  onChange={(e) =>
-                    setFormData({ ...formData, email: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   placeholder="contact@company.com"
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none transition-all"
                 />
@@ -546,30 +476,24 @@ export default function CompanyProfilePage({
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  <MapPin className="w-4 h-4 inline mr-1" />
-                  Country
+                  <MapPin className="w-4 h-4 inline mr-1" /> Country
                 </label>
                 <input
                   type="text"
                   value={formData.country}
-                  onChange={(e) =>
-                    setFormData({ ...formData, country: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, country: e.target.value })}
                   placeholder="e.g. Rwanda"
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none transition-all"
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  <MapPin className="w-4 h-4 inline mr-1" />
-                  Location
+                  <MapPin className="w-4 h-4 inline mr-1" /> Location
                 </label>
                 <input
                   type="text"
                   value={formData.location}
-                  onChange={(e) =>
-                    setFormData({ ...formData, location: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                   placeholder="e.g. Kigali, Rwanda"
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none transition-all"
                 />
@@ -577,9 +501,7 @@ export default function CompanyProfilePage({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Industry
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Industry</label>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-48 overflow-y-auto border border-gray-200 rounded-xl p-3">
                 {industries.map((ind) => (
                   <label key={ind.id} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-2 rounded-lg">
@@ -609,15 +531,12 @@ export default function CompanyProfilePage({
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    <Tags className="w-4 h-4 inline mr-1" />
-                    Tags
+                    <Tags className="w-4 h-4 inline mr-1" /> Tags
                   </label>
                   <input
                     type="text"
                     value={formData.tags}
-                    onChange={(e) =>
-                      setFormData({ ...formData, tags: e.target.value })
-                    }
+                    onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
                     placeholder="Comma-separated tags"
                     className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#3182ce]/20 focus:border-[#3182ce] outline-none transition-all"
                   />

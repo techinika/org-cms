@@ -11,7 +11,7 @@ import {
   Save,
 } from "lucide-react";
 import { EVENT_FORMATS } from "@/types/company";
-import { supabase } from "@/lib/supabase";
+import { getCompanyBySlug, workerFetch } from "@/lib/worker";
 import { checkAuthClient, getAuthRedirectUrl } from "@/lib/auth-client";
 import Navbar from "@/components/parts/Navbar";
 import Breadcrumb from "@/components/parts/Breadcrumb";
@@ -46,11 +46,7 @@ export default function NewEventPage({ params }: Props) {
   const [dateError, setDateError] = useState<string | null>(null);
 
   const fetchCompany = async () => {
-    const { data } = await supabase
-      .from("featured_startups")
-      .select("id")
-      .eq("slug", slug)
-      .single();
+    const { data } = await getCompanyBySlug(slug);
     if (data) {
       setCompanyId(data.id);
     }
@@ -112,9 +108,9 @@ export default function NewEventPage({ params }: Props) {
         ).toISOString()
       : null;
 
-    const { data, error: insertError } = await supabase
-      .from("events")
-      .insert({
+    const res = await workerFetch("/api/events", {
+      method: "POST",
+      body: JSON.stringify({
         title: formData.title,
         slug: eventSlug,
         location: formData.location || null,
@@ -134,11 +130,11 @@ export default function NewEventPage({ params }: Props) {
         is_featured: false,
         views: 0,
         lang: "english",
-      })
-      .select()
-      .single();
+      }),
+    });
+    const data = await res.json();
 
-    if (insertError) {
+    if (!res.ok) {
       setError("Failed to create event");
       setIsSaving(false);
       return;

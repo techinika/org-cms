@@ -15,7 +15,7 @@ import {
   ToggleRight,
 } from "lucide-react";
 import { Event, EventTicket } from "@/types/company";
-import { getEventById, getEventTickets, createEventTicket, updateEventTicket, deleteEventTicket } from "@/lib/supabase";
+import { getEventById, getEventTickets, workerFetch } from "@/lib/worker";
 import { checkAuthClient, getAuthRedirectUrl } from "@/lib/auth-client";
 import Navbar from "@/components/parts/Navbar";
 import Breadcrumb from "@/components/parts/Breadcrumb";
@@ -84,15 +84,21 @@ export default function EventTicketsPage({ params }: Props) {
       is_active: form.is_active,
     };
 
-    let error;
+    let res;
     if (editingTicket) {
-      ({ error } = await updateEventTicket(editingTicket.id, data));
+      res = await workerFetch(`/api/events/${eventId}/tickets/${editingTicket.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      });
     } else {
-      ({ error } = await createEventTicket(data));
+      res = await workerFetch(`/api/events/${eventId}/tickets`, {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
     }
 
     setSaving(false);
-    if (error) {
+    if (!res.ok) {
       showToast(`Failed to ${editingTicket ? "update" : "create"} ticket`, "error");
     } else {
       showToast(`Ticket ${editingTicket ? "updated" : "created"}`, "success");
@@ -103,8 +109,8 @@ export default function EventTicketsPage({ params }: Props) {
 
   const handleDelete = async (id: string) => {
     setSaving(true);
-    const { error } = await deleteEventTicket(id);
-    if (error) {
+    const res = await workerFetch(`/api/events/${eventId}/tickets/${id}`, { method: "DELETE" });
+    if (!res.ok) {
       showToast("Failed to delete ticket", "error");
     } else {
       showToast("Ticket deleted", "success");
@@ -115,8 +121,11 @@ export default function EventTicketsPage({ params }: Props) {
 
   const toggleActive = async (ticket: EventTicket) => {
     setSaving(true);
-    const { error } = await updateEventTicket(ticket.id, { is_active: !ticket.is_active });
-    if (error) {
+    const res = await workerFetch(`/api/events/${eventId}/tickets/${ticket.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ is_active: !ticket.is_active }),
+    });
+    if (!res.ok) {
       showToast("Failed to update ticket", "error");
     } else {
       showToast(`Ticket ${ticket.is_active ? "deactivated" : "activated"}`, "success");

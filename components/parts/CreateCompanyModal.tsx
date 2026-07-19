@@ -10,7 +10,7 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { FeaturedStartup } from "@/types/company";
-import { supabase, searchCompanies } from "@/lib/supabase";
+import { searchCompanies, claimCompany, getUserPendingRequestByCompany, removeUserCompany, createCompany, workerFetch } from "@/lib/worker";
 import CompanyLogo from "../ui/CompanyLogo";
 
 interface Props {
@@ -124,22 +124,9 @@ export default function CreateCompanyModal({
 
     setClaiming(true);
     try {
-      const { error: claimError } = await supabase.from("user_company").insert({
-        user_id: userId,
-        company_id: selectedCompany.id,
-        role: "manager",
-        status: "confirmation_pending",
-        added_by: userId,
-      });
+      const { error: claimError } = await claimCompany(userId, selectedCompany.id, userId);
 
       if (claimError) throw claimError;
-
-      if (!selectedCompany.claimed) {
-        await supabase
-          .from("featured_startups")
-          .update({ claimed: true })
-          .eq("id", selectedCompany.id);
-      }
 
       onCreated(selectedCompany);
       onClose();
@@ -159,22 +146,13 @@ export default function CreateCompanyModal({
 
     setClaiming(true);
     try {
-      const { data: requestData, error: findError } = await supabase
-        .from("user_company")
-        .select("id")
-        .eq("user_id", userId)
-        .eq("company_id", selectedCompany.id)
-        .eq("status", "confirmation_pending")
-        .single();
+      const { data: requestData, error: findError } = await getUserPendingRequestByCompany(userId, selectedCompany.id);
 
       if (findError || !requestData) {
         throw new Error("Request not found");
       }
 
-      const { error: cancelError } = await supabase
-        .from("user_company")
-        .delete()
-        .eq("id", requestData.id);
+      const { error: cancelError } = await removeUserCompany(userId, selectedCompany.id);
 
       if (cancelError) throw cancelError;
 
@@ -217,34 +195,33 @@ const slugify = (text: string) =>
     setIsLoading(true);
     try {
       const tempSlug = generateSlug(formData.name, Math.random().toString(36));
-      const { data, error } = await supabase
-        .from("featured_startups")
-        .insert({
-          name: formData.name,
-          description: formData.description || "",
-          slug: tempSlug,
-          logo_url: formData.logo_url || null,
-          image_ref: formData.image_ref || null,
-          lang: "english",
-          is_featured: true,
-          status: "published",
-          claimed: true,
-          roles: ["Hiring", "Partner"],
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      const { error: userCompanyError } = await supabase.from("user_company").insert({
-        user_id: userId,
-        company_id: data.id,
-        role: "creator",
-        status: "accepted",
-        added_by: userId,
+      const { data, error } = await createCompany({
+        name: formData.name,
+        description: formData.description || "",
+        slug: tempSlug,
+        logo_url: formData.logo_url || null,
+        image_ref: formData.image_ref || null,
+        lang: "english",
+        is_featured: true,
+        status: "published",
+        claimed: true,
+        roles: ["Hiring", "Partner"],
       });
 
-      if (userCompanyError) throw userCompanyError;
+      if (error) throw error;
+      if (!data) throw new Error("Failed to create company");
+
+      const userRes = await workerFetch(`/api/companies/${data.id}/users`, {
+        method: "POST",
+        body: JSON.stringify({
+          user_id: userId,
+          role: "creator",
+          status: "accepted",
+          added_by: userId,
+        }),
+      });
+
+      if (!userRes.ok) throw new Error(await userRes.text());
 
       onCreated(data);
       onClose();

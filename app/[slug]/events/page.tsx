@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { use } from "react";
 import Link from "next/link";
 import { FeaturedStartup, Event } from "@/types/company";
-import { getCompanyBySlug, getCompanyEvents, deleteEvent } from "@/lib/supabase";
+import { getCompanyBySlug, getCompanyEvents, workerFetch } from "@/lib/worker";
 import { checkAuthClient, getAuthRedirectUrl } from "@/lib/auth-client";
 import Navbar from "@/components/parts/Navbar";
 import Breadcrumb from "@/components/parts/Breadcrumb";
@@ -54,8 +54,8 @@ export default function CompanyEventsPage({ params }: { params: Promise<{ slug: 
 
   const handleDeleteEvent = async (eventId: string) => {
     setDeletingId(eventId);
-    const { error } = await deleteEvent(eventId);
-    if (!error) {
+    const res = await workerFetch(`/api/events/${eventId}`, { method: "DELETE" });
+    if (res.ok) {
       setEvents(events.filter(e => e.id !== eventId));
       showToast("Event deleted successfully", "success");
     } else {
@@ -68,10 +68,10 @@ export default function CompanyEventsPage({ params }: { params: Promise<{ slug: 
   const handleConfirmDelete = async () => {
     if (!confirmDelete.event) return;
     setDeletingId(confirmDelete.event.id);
-    const { error } = await deleteEvent(confirmDelete.event.id);
+    const res = await workerFetch(`/api/events/${confirmDelete.event.id}`, { method: "DELETE" });
     setDeletingId(null);
     setConfirmDelete({ open: false, event: null });
-    if (!error) {
+    if (res.ok) {
       setEvents(events.filter(e => e.id !== confirmDelete.event!.id));
       showToast("Event deleted successfully", "success");
     } else {

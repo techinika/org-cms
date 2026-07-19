@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from "react";
+import React, { useState, useEffect, useCallback, Suspense } from "react";
 import {
   Plus,
   Search,
@@ -13,9 +13,9 @@ import {
   CheckCircle,
   XCircle,
 } from "lucide-react";
-import { FeaturedStartup, UserCompany, AuthUser } from "@/types/company";
-import { getUserCompanies, getAllCompanies, claimCompany, getUserPendingRequests, supabase } from "@/lib/supabase";
-import { checkAuthClient, getAuthRedirectUrl } from "@/lib/auth-client";
+import { FeaturedStartup, UserCompany } from "@/types/company";
+import { getUserCompanies, getAllCompanies, claimCompany, getUserPendingRequests, removeUserCompany } from "@/lib/worker";
+import { useAuth } from "@/hooks/useAuth";
 import CreateCompanyModal from "../parts/CreateCompanyModal";
 import Navbar from "../parts/Navbar";
 import { useToast } from "../ui/Toast";
@@ -56,6 +56,7 @@ function UserBadge({ status }: { status: string | null | undefined }) {
 }
 
 function CompanyDashboardContent() {
+  const { user, isLoading: authLoading, isAdmin } = useAuth();
   const { showToast } = useToast();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [userCompanies, setUserCompanies] = useState<UserCompany[]>([]);
@@ -63,40 +64,12 @@ function CompanyDashboardContent() {
   const [allCompanies, setAllCompanies] = useState<FeaturedStartup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [user, setUser] = useState<AuthUser & { profilePicture?: string | null; authName?: string | null } | null>(null);
   const [showAllCompanies, setShowAllCompanies] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [claimingCompanyId, setClaimingCompanyId] = useState<string | null>(null);
   const [confirmCancel, setConfirmCancel] = useState<{ open: boolean; companyId: string | null; companyName: string | null }>({ open: false, companyId: null, companyName: null });
 
-  useEffect(() => {
-    checkAuth();
-  }, []);
-
-  const checkAuth = async () => {
-    try {
-      const authResult = await checkAuthClient();
-      if (!authResult.authenticated || !authResult.user) {
-        window.location.replace(getAuthRedirectUrl());
-        return;
-      }
-      setUser({
-        id: authResult.user.id,
-        email: authResult.user.email,
-        name: authResult.user.name,
-        avatar: authResult.user.avatar,
-        isAdmin: authResult.isAdmin,
-        profilePicture: authResult.profilePicture,
-        authName: authResult.name,
-      });
-      await fetchCompanies(authResult.user.id, authResult.isAdmin);
-    } catch (err) {
-      console.error("Auth check failed:", err);
-      window.location.replace(getAuthRedirectUrl());
-    }
-  };
-
-  const fetchCompanies = async (userId: string, isAdmin?: boolean) => {
+  const fetchCompanies = useCallback(async (userId: string, isUserAdmin?: boolean) => {
     setIsLoading(true);
     setError(null);
     try {
@@ -104,16 +77,16 @@ function CompanyDashboardContent() {
         getUserCompanies(userId),
         getUserPendingRequests(userId),
       ]);
-      
+
       if (companiesError) throw companiesError;
       setUserCompanies(companiesData || []);
-      
+
       if (pendingError) {
         console.error("Failed to fetch pending requests:", pendingError);
       }
       setUserPendingRequests(pendingData || []);
 
-      if (isAdmin) {
+      if (isUserAdmin) {
         const { data: allData, error: allError } = await getAllCompanies();
         if (allError) throw allError;
         setAllCompanies(allData || []);
@@ -124,15 +97,21 @@ function CompanyDashboardContent() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!authLoading && user) {
+      fetchCompanies(user.id, isAdmin);
+    }
+  }, [authLoading, user, isAdmin, fetchCompanies]);
 
   const handleClaimCompany = async (companyId: string) => {
     if (!user) return;
     setClaimingCompanyId(companyId);
     try {
-      const { data, error } = await claimCompany(user.id, companyId, user.id);
+      const { error } = await claimCompany(user.id, companyId, user.id);
       if (error) throw error;
-      await checkAuth();
+      await fetchCompanies(user.id, isAdmin);
     } catch (err) {
       console.error("Failed to claim company:", err);
       setError("Failed to claim company");
@@ -149,17 +128,12 @@ function CompanyDashboardContent() {
     if (!user || !confirmCancel.companyId) return;
     setClaimingCompanyId(confirmCancel.companyId);
     try {
-      const { error } = await supabase
-        .from("user_company")
-        .delete()
-        .eq("user_id", user.id)
-        .eq("company_id", confirmCancel.companyId)
-        .eq("status", "confirmation_pending");
+      const { error } = await removeUserCompany(user.id, confirmCancel.companyId);
 
       if (error) throw error;
       showToast("Request cancelled", "success");
       setConfirmCancel({ open: false, companyId: null, companyName: null });
-      await checkAuth();
+      await fetchCompanies(user.id, isAdmin);
     } catch (err) {
       console.error("Failed to cancel request:", err);
       setError("Failed to cancel request");
@@ -168,12 +142,7 @@ function CompanyDashboardContent() {
     }
   };
 
-  const handleCompanyCreated = async (newCompany: FeaturedStartup) => {
-    await checkAuth();
-  };
-
-  const displayCompanies = user?.isAdmin && showAllCompanies ? allCompanies : userCompanies.map(uc => uc.company).filter(Boolean) as FeaturedStartup[];
-  const isAdmin = user?.isAdmin;
+  const displayCompanies = isAdmin && showAllCompanies ? allCompanies : userCompanies.map(uc => uc.company).filter(Boolean) as FeaturedStartup[];
 
   const filteredCompanies = displayCompanies.filter(
     (company) =>
@@ -182,7 +151,7 @@ function CompanyDashboardContent() {
       company.location?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  if (isLoading) {
+  if (authLoading || isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 font-sans flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
@@ -297,7 +266,7 @@ function CompanyDashboardContent() {
       <CreateCompanyModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        onCreated={handleCompanyCreated}
+        onCreated={async () => { if (user) await fetchCompanies(user.id, isAdmin); }}
         userId={user?.id}
         userCompanyIds={userCompanies.map(uc => uc.company_id).filter(Boolean) as string[]}
         userPendingCompanyIds={userPendingRequests.map(ur => ur.company_id).filter(Boolean) as string[]}
