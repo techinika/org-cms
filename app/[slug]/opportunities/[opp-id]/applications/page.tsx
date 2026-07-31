@@ -135,8 +135,7 @@ export default function OpportunityApplicationsPage({
     const recipientEmail = app?.email || app?.tender_email;
     if (recipientEmail && message) {
       try {
-        const emailWorkerUrl = process.env.NEXT_PUBLIC_EMAIL_WORKER_URL || "http://localhost:8788";
-        await fetch(`${emailWorkerUrl}/api/send-email`, {
+        await fetch("/api/send-email", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

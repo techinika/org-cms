@@ -178,8 +178,8 @@ components/
 - All tables have `updated_at` field updated on modifications
 
 ## Environment Variables
-Add SMTP config for email:
-- `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`
+Email is sent through the comms worker from `no-reply@techinika.com`:
+- `NEXT_PUBLIC_COMMS_WORKER_URL`, `WORKER_API_KEY`, `RESEND_FROM="Techinika <no-reply@techinika.com>"`
 
 ## Worker Architecture
 The backend is split into separate Cloudflare Workers:

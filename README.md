@@ -145,13 +145,10 @@ IMAGEKIT_URL_ENDPOINT=your_imagekit_url_endpoint
 NEXT_PUBLIC_AUTH_URL=https://your-auth-app-url
 NEXT_PUBLIC_BASE_URL=http://localhost:3001
 
-# SMTP (for sending emails)
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_SECURE=false
-SMTP_USER=your-email@gmail.com
-SMTP_PASS=your-app-password
-SMTP_FROM=Your Name <your-email@gmail.com>
+# Email (sent via comms worker from no-reply@techinika.com)
+NEXT_PUBLIC_COMMS_WORKER_URL=http://localhost:8789
+WORKER_API_KEY=
+RESEND_FROM="Techinika <no-reply@techinika.com>"
 ```
 
 ### Development
@@ -300,14 +297,14 @@ Open [http://localhost:3001](http://localhost:3001) in your browser.
 
 ## Environment Variables
 
-### SMTP (for sending emails)
+### Email (sent via comms worker)
+Transactional email (application status updates) is sent through the comms worker from
+`no-reply@techinika.com`. `support@techinika.com` / `editorial@techinika.com` are user-facing
+contact addresses only.
 ```
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_SECURE=false
-SMTP_USER=your-email@gmail.com
-SMTP_PASS=your-app-password
-SMTP_FROM=Your Name <your-email@gmail.com>
+NEXT_PUBLIC_COMMS_WORKER_URL=http://localhost:8789
+WORKER_API_KEY=
+RESEND_FROM="Techinika <no-reply@techinika.com>"
 ```
 
 ### Navigation Routes

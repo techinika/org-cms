@@ -18,7 +18,7 @@ interface ApplicationInput {
   resume_url: string | null;
 }
 
-const AI_WORKER_URL = process.env.NEXT_PUBLIC_AI_WORKER_URL || "http://localhost:8787";
+const AI_WORKER_URL = process.env.NEXT_PUBLIC_AI_WORKER_URL || "http://localhost:8788";
 
 export async function compareApplicants(
   opportunityTitle: string,
