@@ -18,15 +18,13 @@ interface ApplicationInput {
   resume_url: string | null;
 }
 
-const AI_WORKER_URL = process.env.NEXT_PUBLIC_AI_WORKER_URL || "http://localhost:8788";
-
 export async function compareApplicants(
   opportunityTitle: string,
   opportunityDescription: string,
   requirements: string | null,
   applications: ApplicationInput[],
 ): Promise<ApplicantScore[]> {
-  const res = await fetch(`${AI_WORKER_URL}/api/ai/compare`, {
+  const res = await fetch("/api/ai/compare", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

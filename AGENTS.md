@@ -70,12 +70,11 @@ This version has breaking changes — APIs, conventions, and file structure may 
   - Pre-filled email template based on progress stage
   - Personalized message field (editable)
   - "Update & Send Email" button
-- **AI Applicant Comparison** (uses OpenAI via ai-worker):
+- **AI Applicant Comparison** (uses Gemini via ai-worker):
   - Click "AI Compare" button to analyze all applicants
   - AI scores each applicant 0-100% based on job requirements
   - Ranked list with reasoning shown in modal
-- **Email Notifications**: Uses email-worker to send personalized emails to applicants when status is updated
-  - Email Worker endpoint: `${NEXT_PUBLIC_EMAIL_WORKER_URL}/api/send-email`
+- **Email Notifications**: Application status emails are proxied through `/api/send-email` to the comms worker, which sends from `no-reply@techinika.com`
 
 ## External Link Click Tracking
 - Opportunities with `application_link` value other than "apply" track external link clicks
@@ -182,24 +181,24 @@ Email is sent through the comms worker from `no-reply@techinika.com`:
 - `NEXT_PUBLIC_COMMS_WORKER_URL`, `WORKER_API_KEY`, `RESEND_FROM="Techinika <no-reply@techinika.com>"`
 
 ## Worker Architecture
-The backend is split into separate Cloudflare Workers:
+The backend is split into separate Cloudflare Workers (lives in the `techinika-workers` repo):
 
-- **Main API Worker** (`workers/src/`) — CRUD for companies, events, opportunities, assets, upload-image
+- **api-worker** (`api-worker/`) — CRUD for companies, events, opportunities, applications, assets
   - Port: 8787
-- **Email Worker** (`workers/email-worker/`) — send-email, subscription-check
+- **ai-worker** (`ai-worker/`) — Gemini: applicant comparison, content generation, article summaries
   - Port: 8788
-- **AI Worker** (`workers/ai-worker/`) — AI applicant comparison via OpenAI
+- **comms-worker** (`comms-worker/`) — transactional email via Resend from `no-reply@techinika.com`
   - Port: 8789
+- **comms-consumer** (`comms-consumer/`) — Cloudflare Queues consumer for campaign email (no HTTP route)
+- **uploads-worker** (`uploads-worker/`) — uploads to R2 served from `assets.techinika.com`
+  - Port: 8790
 
 Each worker has its own `package.json`, `wrangler.jsonc`, and `src/env.ts`.
 
-## Image & Video Upload (ImageKit)
-- All image uploads now use ImageKit instead of Cloudinary
-- Files are uploaded via `/api/upload-image` route
+## Image & Video Upload
+- All uploads go through the shared uploads worker (`/api/upload`) via the `/api/upload-image` proxy route
+- Files are stored in R2 and served from `assets.techinika.com`
 - Each upload creates a record in `assets` table
-- `featured_startups.logo_url` stores the ImageKit URL
+- `featured_startups.logo_url` stores the R2 asset URL
 - `featured_startups.image_ref` references `assets.id`
-- Environment variables:
-  - `IMAGEKIT_PUBLIC_KEY` - ImageKit public key (client-side)
-  - `IMAGEKIT_PRIVATE_KEY` - ImageKit private key (server-side)
-  - `IMAGEKIT_URL_ENDPOINT` - ImageKit URL endpoint
+- The proxy route sends `WORKER_API_KEY` as `X-API-Key`; it also forces `record=true` so the worker creates the `assets` row

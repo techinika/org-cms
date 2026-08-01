@@ -22,7 +22,7 @@ A modern company management dashboard for managing events, opportunities, and co
 - **Language**: TypeScript
 - **Styling**: Tailwind CSS
 - **Database**: Supabase (PostgreSQL)
-- **Image Storage**: ImageKit (with assets table for tracking uploads)
+- **Image Storage**: R2 via uploads worker (served from `assets.techinika.com`)
 - **Icons**: Lucide React
 
 ## Project Structure
@@ -69,12 +69,9 @@ org-cms/
 │       ├── FeedbackModal.tsx          # Email feedback modal
 │       └── AIScoreModal.tsx          # AI comparison results
 ├── lib/
-│   ├── auth.ts                      # Server-side auth utilities
+│   ├── worker.ts                    # Main api-worker client (CRUD, session auth)
+│   ├── ai.ts                        # AI applicant comparison (via /api/ai/compare proxy)
 │   ├── auth-client.ts              # Client-side auth utilities
-│   ├── cloudinary.ts              # (Deprecated - use imagekit.ts)
-│   ├── imagekit.ts                 # ImageKit upload utilities
-│   ├── supabase.ts                # Supabase client & queries
-│   └── supabase-server.ts        # Server-side Supabase client
 ├── types/
 │   └── company.ts                # TypeScript types
 ├── .env                           # Environment variables
@@ -101,11 +98,9 @@ org-cms/
 │       ├── Navbar.tsx                   # Top navigation bar
 │       └── CreateCompanyModal.tsx       # Add/claim company modal
 ├── lib/
-│   ├── auth.ts                         # Server-side auth utilities
-│   ├── auth-client.ts                  # Client-side auth utilities
-│   ├── cloudinary.ts                   # Image upload utilities
-│   ├── supabase.ts                     # Supabase client & queries
-│   └── supabase-server.ts              # Server-side Supabase client
+│   ├── worker.ts                      # Main api-worker client (CRUD, session auth)
+│   ├── ai.ts                          # AI applicant comparison (via /api/ai/compare proxy)
+│   ├── auth-client.ts                 # Client-side auth utilities
 ├── types/
 │   └── company.ts                      # TypeScript types
 ├── .env                                 # Environment variables
@@ -136,19 +131,16 @@ NEXT_PUBLIC_PROJECT_URL=your_supabase_project_url
 NEXT_PUBLIC_API_KEY=your_supabase_anon_key
 NEXT_PUBLIC_SERVICE_KEY=your_supabase_service_key
 
-# ImageKit
-NEXT_PUBLIC_IMAGEKIT_PUBLIC_KEY=your_imagekit_public_key
-IMAGEKIT_PRIVATE_KEY=your_imagekit_private_key
-IMAGEKIT_URL_ENDPOINT=your_imagekit_url_endpoint
+# Backend Workers (email, uploads, AI are proxied to shared Cloudflare Workers)
+NEXT_PUBLIC_WORKER_API_URL=http://localhost:8787
+NEXT_PUBLIC_AI_WORKER_URL=http://localhost:8788
+NEXT_PUBLIC_COMMS_WORKER_URL=http://localhost:8789
+NEXT_PUBLIC_UPLOADS_WORKER_URL=http://localhost:8790
+WORKER_API_KEY=
 
 # Auth
 NEXT_PUBLIC_AUTH_URL=https://your-auth-app-url
 NEXT_PUBLIC_BASE_URL=http://localhost:3001
-
-# Email (sent via comms worker from no-reply@techinika.com)
-NEXT_PUBLIC_COMMS_WORKER_URL=http://localhost:8789
-WORKER_API_KEY=
-RESEND_FROM="Techinika <no-reply@techinika.com>"
 ```
 
 ### Development
@@ -286,9 +278,9 @@ Open [http://localhost:3001](http://localhost:3001) in your browser.
 - Application progress workflow: In Review → Interview Pending → Technical Exam → Contract Signing → Hired
 - Rejection flow with customizable email message
 - **AI Applicant Comparison**: Click "AI Compare" button to rank applicants by compatibility score (0-100%)
-  - Uses Puter.js AI to analyze cover letters against job requirements
+  - Uses Gemini via the ai-worker (proxied through `/api/ai/compare`)
   - Shows ranked list with scores and reasoning
-- **Email Notifications**: When updating application status, personalized email is sent to applicant via nodemailer
+- **Email Notifications**: When updating application status, personalized email is sent to the applicant via the comms worker (proxied through `/api/send-email`)
 - Delete opportunity from menu
 
 ### Application Link
