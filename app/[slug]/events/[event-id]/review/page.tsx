@@ -24,6 +24,7 @@ import Breadcrumb from "@/components/parts/Breadcrumb";
 import { useToast } from "@/components/ui/Toast";
 import ConfirmationModal from "@/components/ui/ConfirmationModal";
 import CompanyLogo from "@/components/ui/CompanyLogo";
+import { sanitizeHtml } from "@/lib/sanitize";
 
 interface EventSpeaker {
   id: string;
@@ -390,7 +391,7 @@ export default function EventReviewPage({ params }: Props) {
                 {(event.faqs as { question: string; answer: string }[]).map((faq, i) => (
                   <div key={i} className="text-sm">
                     <p className="font-medium text-gray-900">Q: {faq.question}</p>
-                    <p className="text-gray-600 ml-4" dangerouslySetInnerHTML={{ __html: faq.answer }} />
+                    <p className="text-gray-600 ml-4" dangerouslySetInnerHTML={{ __html: sanitizeHtml(faq.answer) }} />
                   </div>
                 ))}
               </div>

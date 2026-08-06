@@ -78,35 +78,6 @@ org-cms/
 ├── package.json
 └── tsconfig.json
 ```
-org-cms/
-├── app/
-│   ├── [slug]/
-│   │   ├── page.tsx                     # Company main page with tabs
-│   │   ├── events/
-│   │   │   ├── new/page.tsx             # Create new event
-│   │   │   └── [event-id]/page.tsx      # Event detail & edit
-│   │   └── opportunities/
-│   │       ├── new/page.tsx             # Create new opportunity
-│   │       └── [opp-id]/page.tsx        # Opportunity detail with applications
-│   ├── globals.css
-│   ├── layout.tsx
-│   └── page.tsx                         # Homepage (company list)
-├── components/
-│   ├── pages/
-│   │   └── Home.tsx                     # Main dashboard
-│   └── parts/
-│       ├── Navbar.tsx                   # Top navigation bar
-│       └── CreateCompanyModal.tsx       # Add/claim company modal
-├── lib/
-│   ├── worker.ts                      # Main api-worker client (CRUD, session auth)
-│   ├── ai.ts                          # AI applicant comparison (via /api/ai/compare proxy)
-│   ├── auth-client.ts                 # Client-side auth utilities
-├── types/
-│   └── company.ts                      # TypeScript types
-├── .env                                 # Environment variables
-├── package.json
-└── tsconfig.json
-```
 
 ## Getting Started
 
@@ -126,11 +97,6 @@ npm install
 Create a `.env.local` file with:
 
 ```env
-# Supabase
-NEXT_PUBLIC_PROJECT_URL=your_supabase_project_url
-NEXT_PUBLIC_API_KEY=your_supabase_anon_key
-NEXT_PUBLIC_SERVICE_KEY=your_supabase_service_key
-
 # Backend Workers (email, uploads, AI are proxied to shared Cloudflare Workers)
 NEXT_PUBLIC_WORKER_API_URL=http://localhost:8787
 NEXT_PUBLIC_AI_WORKER_URL=http://localhost:8788
@@ -138,10 +104,13 @@ NEXT_PUBLIC_COMMS_WORKER_URL=http://localhost:8789
 NEXT_PUBLIC_UPLOADS_WORKER_URL=http://localhost:8790
 WORKER_API_KEY=
 
-# Auth
-NEXT_PUBLIC_AUTH_URL=https://your-auth-app-url
-NEXT_PUBLIC_BASE_URL=http://localhost:3001
+# Auth (external auth app — auth-platform)
+NEXT_PUBLIC_AUTH_URL=http://localhost:3000
+NEXT_PUBLIC_BASE_URL=http://localhost:3002
 ```
+
+> **Note**: org-cms has no direct Supabase access — all data flows through the api-worker.
+> No Supabase keys are required here.
 
 ### Development
 
@@ -152,6 +121,9 @@ npm run dev
 Open [http://localhost:3001](http://localhost:3001) in your browser.
 
 ## Database Schema
+
+> The schema is owned by the api-worker (migrations in `techinika-workers/api-worker`). The
+> `supabase/migrations` folder in this repo mirrors it for reference.
 
 ### featured_startups
 - id (uuid, primary key)
@@ -182,7 +154,6 @@ Open [http://localhost:3001](http://localhost:3001) in your browser.
 - file_size (numeric)
 - width (numeric)
 - height (numeric)
-- imagekit_file_id (text)
 - created_at, updated_at (timestamps)
 
 ### user_company
@@ -286,6 +257,17 @@ Open [http://localhost:3001](http://localhost:3001) in your browser.
 ### Application Link
 - To use the built-in application form (instead of external link), set application_link to "apply"
 - This will make the opportunity accept applications through the CMS form
+
+## Security
+
+- **Session-guarded proxies**: `/api/send-email`, `/api/upload-image`, and `/api/ai/compare`
+  verify the session server-side (`checkAuthStatusServer()` in `lib/auth-server.ts`) and
+  return `401` when unauthenticated.
+- **Sanitized HTML**: FAQ answers are rendered through the whitelist sanitizer in
+  `lib/sanitize.ts` (strips `on*` handlers and blocks `javascript:`/`vbscript:`/`data:` URIs).
+- **Security headers**: `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`,
+  `X-XSS-Protection`, plus `poweredByHeader: false` in `next.config.ts`.
+- No Supabase keys ship in this app — all data access is server-side via the api-worker.
 
 ## Environment Variables
 

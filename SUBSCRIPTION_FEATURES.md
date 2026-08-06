@@ -102,16 +102,10 @@ The platform sends automated emails for subscription events:
 
 ## API Endpoints
 
-### Subscription Check (`/api/subscription-check`)
-- GET endpoint for checking subscription statuses
-- Intended to be called periodically (e.g., daily cron job)
-- Sends notifications based on expiration timelines
-- Returns success/failure status
-
-### Email Service (`/app/api/send-email`)
-- POST endpoint for sending application-related emails
+### Email Service (`/api/send-email`)
+- POST endpoint for sending application-related emails (session-guarded, `401` when unauthenticated)
 - Used by the applications dashboard when updating applicant status
-- Requires SMTP configuration in environment variables
+- Emails are proxied to the comms worker (Resend) from `no-reply@techinika.com` — no SMTP server needed
 
 ## Database Schema
 
@@ -141,7 +135,7 @@ created_at TIMESTAMP WITH TIME ZONE
 - Presents upgrade options:
   - Basic tier: 5 listings for $49.99 (one-time)
   - Advanced tier: Unlimited listings for $19.99/month
-- Handles subscription updates via Supabase
+- Handles subscription updates via the api-worker
 - Shows processing state and success/error messages
 
 ### Usage Analytics
@@ -152,12 +146,11 @@ created_at TIMESTAMP WITH TIME ZONE
 ## Environment Variables Required
 
 For email functionality:
-- `SMTP_HOST`: SMTP server hostname
-- `SMTP_PORT`: SMTP server port (default: 587)
-- `SMTP_SECURE`: Whether to use SSL/TLS (`true`/`false`)
-- `SMTP_USER`: SMTP username
-- `SMTP_PASS`: SMTP password
-- `SMTP_FROM`: From email address
+- `NEXT_PUBLIC_COMMS_WORKER_URL`: Comms worker URL (e.g. http://localhost:8789)
+- `WORKER_API_KEY`: Shared secret sent as `X-API-Key` to worker endpoints
+
+No SMTP configuration is used — all transactional email goes through the comms worker
+from `no-reply@techinika.com`.
 
 ## Implementation Notes
 

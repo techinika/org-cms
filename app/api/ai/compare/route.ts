@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { checkAuthStatusServer } from "@/lib/auth-server";
 
 const AI_WORKER_URL = (
   process.env.NEXT_PUBLIC_AI_WORKER_URL || "http://localhost:8788"
@@ -6,6 +7,11 @@ const AI_WORKER_URL = (
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await checkAuthStatusServer();
+    if (!auth.authenticated) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await request.json();
 
     const res = await fetch(`${AI_WORKER_URL}/api/ai/compare`, {

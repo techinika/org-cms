@@ -8,8 +8,6 @@ import {
   ArrowLeft,
   Users,
   Eye,
-  TrendingUp,
-  Calendar,
 } from "lucide-react";
 import { Event } from "@/types/company";
 import { getEventById, workerFetch } from "@/lib/worker";
@@ -27,8 +25,6 @@ export default function EventStatsPage({ params }: Props) {
   const [stats, setStats] = useState({
     registrations: 0,
     views: 0,
-    viewsToday: 0,
-    viewsThisWeek: 0,
   });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -54,13 +50,6 @@ export default function EventStatsPage({ params }: Props) {
     const statsData = regRes.ok ? await regRes.json() : { total_registrations: 0 };
     setStats((prev) => ({ ...prev, registrations: statsData.total_registrations || 0 }));
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const weekAgo = new Date();
-    weekAgo.setDate(weekAgo.getDate() - 7);
-
-    setStats((prev) => ({ ...prev, viewsToday: Math.floor(Math.random() * 20), viewsThisWeek: Math.floor(Math.random() * 100) }));
-    
     setIsLoading(false);
   };
 
@@ -108,27 +97,13 @@ export default function EventStatsPage({ params }: Props) {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
           <div className="bg-white rounded-xl border p-4">
             <div className="flex items-center gap-2 text-gray-500 mb-1">
               <Eye className="w-4 h-4" />
               <span className="text-xs">Total Views</span>
             </div>
             <p className="text-2xl font-bold">{stats.views}</p>
-          </div>
-          <div className="bg-white rounded-xl border p-4">
-            <div className="flex items-center gap-2 text-gray-500 mb-1">
-              <Eye className="w-4 h-4" />
-              <span className="text-xs">Views Today</span>
-            </div>
-            <p className="text-2xl font-bold">{stats.viewsToday}</p>
-          </div>
-          <div className="bg-white rounded-xl border p-4">
-            <div className="flex items-center gap-2 text-gray-500 mb-1">
-              <TrendingUp className="w-4 h-4" />
-              <span className="text-xs">Views This Week</span>
-            </div>
-            <p className="text-2xl font-bold">{stats.viewsThisWeek}</p>
           </div>
           <div className="bg-white rounded-xl border p-4">
             <div className="flex items-center gap-2 text-gray-500 mb-1">

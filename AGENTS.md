@@ -147,7 +147,8 @@ const [confirmDelete, setConfirmDelete] = useState<{ open: boolean; item: Item |
 ```
 
 ### Updated At Timestamps
-All update operations automatically set `updated_at` to current timestamp via supabase.ts functions.
+All update operations automatically set `updated_at` to the current timestamp on the api-worker
+side. There is no direct Supabase client in this app.
 
 ## Component Organization
 ```
@@ -178,7 +179,9 @@ components/
 
 ## Environment Variables
 Email is sent through the comms worker from `no-reply@techinika.com`:
-- `NEXT_PUBLIC_COMMS_WORKER_URL`, `WORKER_API_KEY`, `RESEND_FROM="Techinika <no-reply@techinika.com>"`
+- `NEXT_PUBLIC_COMMS_WORKER_URL`, `WORKER_API_KEY`
+
+The `/api/send-email` proxy is session-guarded (`checkAuthStatusServer()` in `lib/auth-server.ts`).
 
 ## Worker Architecture
 The backend is split into separate Cloudflare Workers (lives in the `techinika-workers` repo):
@@ -196,7 +199,7 @@ The backend is split into separate Cloudflare Workers (lives in the `techinika-w
 Each worker has its own `package.json`, `wrangler.jsonc`, and `src/env.ts`.
 
 ## Image & Video Upload
-- All uploads go through the shared uploads worker (`/api/upload`) via the `/api/upload-image` proxy route
+- All uploads go through the shared uploads worker (`/api/upload`) via the `/api/upload-image` proxy route (session-guarded, `401` when unauthenticated)
 - Files are stored in R2 and served from `assets.techinika.com`
 - Each upload creates a record in `assets` table
 - `featured_startups.logo_url` stores the R2 asset URL
