@@ -10,16 +10,14 @@ import {
   Trash2,
   Plus,
   MapPin,
-  DollarSign,
 } from "lucide-react";
 import { FeaturedStartup, Opportunity } from "@/types/company";
-import { getCompanyBySlug, getCompanyOpportunities, workerFetch } from "@/lib/worker";
+import { getCompanyBySlug, getCompanyOpportunities, workerFetch, isUserCompanyMember } from "@/lib/worker";
 import { checkAuthClient, getAuthRedirectUrl } from "@/lib/auth-client";
 import Navbar from "@/components/parts/Navbar";
 import Breadcrumb from "@/components/parts/Breadcrumb";
 import ConfirmationModal from "@/components/ui/ConfirmationModal";
 import { useToast } from "@/components/ui/Toast";
-import PricingModal from "@/components/opportunities/PricingModal";
 
 export default function CompanyOpportunitiesPage({
   params,
@@ -35,8 +33,7 @@ export default function CompanyOpportunitiesPage({
   const [showMenu, setShowMenu] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<{ open: boolean; opp: Opportunity | null }>({ open: false, opp: null });
-  const [hasAccess, setHasAccess] = useState<boolean>(true);
-  const [showPricingModal, setShowPricingModal] = useState(false);
+  const [isMember, setIsMember] = useState<boolean | null>(null);
 
   const fetchCompany = async () => {
     setIsLoading(true);
@@ -48,14 +45,15 @@ export default function CompanyOpportunitiesPage({
     }
     setCompany(companyData);
 
-    // Check if company has access to opportunities features based on tier
-    const tier = companyData.opportunity_tier || 'free';
-    const hasAccess = tier === 'basic' || tier === 'advanced';
-    setHasAccess(hasAccess);
-
-    if (!hasAccess) {
-      setIsLoading(false);
-      return;
+    const authResult = await checkAuthClient();
+    if (authResult.authenticated && authResult.user) {
+      const { isMember: member } = await isUserCompanyMember(authResult.user.id, companyData.id);
+      setIsMember(member);
+      if (!member) {
+        setError("You are not a member of this company");
+        setIsLoading(false);
+        return;
+      }
     }
 
     const { data: oppData, error: oppError } = await getCompanyOpportunities(companyData.id);
@@ -123,27 +121,21 @@ export default function CompanyOpportunitiesPage({
         );
     }
 
-    // If company doesn't have access to opportunities features, show upgrade prompt
-    if (!hasAccess) {
+    // If company doesn't exist, show error
+    if (!company) {
         return (
-            <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center py-12">
-                <div className="text-center">
-                    <div className="w-20 h-20 bg-purple-100 rounded-2xl flex items-center justify-center mb-6">
-                        <DollarSign className="w-10 h-10 text-purple-600" />
-                    </div>
-                    <h2 className="text-2xl font-bold text-gray-900 mb-4">Upgrade to Access Opportunities</h2>
-                    <p className="text-gray-600 mb-8 max-w-xl">
-                        Your current plan ({company.opportunity_tier || 'free'} tier) doesn&apos;t include access to opportunities management.
-                        Upgrade to post job listings, manage applications, and access advanced features.
-                    </p>
-                    <button
-                        onClick={() => setShowPricingModal(true)}
-                        className="inline-flex items-center gap-2 px-6 py-3 bg-[#3182ce] text-white rounded-xl font-medium text-sm hover:bg-[#2c5cb8] transition-colors"
-                    >
-                        <DollarSign className="w-5 h-5" />
-                        Upgrade Plan
-                    </button>
-                </div>
+            <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
+                <p className="text-gray-500 mb-4">Company not found</p>
+                <Link href="/" className="text-[#3182ce] hover:underline">Go back home</Link>
+            </div>
+        );
+    }
+
+    if (isMember === false) {
+        return (
+            <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
+                <p className="text-gray-500 mb-4">You are not a member of this company</p>
+                <Link href="/" className="text-[#3182ce] hover:underline">Go back home</Link>
             </div>
         );
     }

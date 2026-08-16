@@ -22,7 +22,7 @@ import {
   WORK_MODES,
   EMPLOYMENT_TYPES,
 } from "@/types/company";
-import { getOpportunityById, getCompanyBySlug, workerFetch } from "@/lib/worker";
+import { getOpportunityById, workerFetch } from "@/lib/worker";
 import { useAuth } from "@/hooks/useAuth";
 import Navbar from "@/components/parts/Navbar";
 import Breadcrumb from "@/components/parts/Breadcrumb";
@@ -59,7 +59,6 @@ export default function EditOpportunityPage({
     status: "draft",
     expires_at: "",
   });
-  const [hasAccess, setHasAccess] = useState(true);
 
   const fetchOpportunity = useCallback(async () => {
     setIsLoading(true);
@@ -68,19 +67,6 @@ export default function EditOpportunityPage({
       setError("Opportunity not found");
       setIsLoading(false);
       return;
-    }
-
-    if (data.company_id) {
-      const { data: companyData } = await getCompanyBySlug(slug);
-      if (companyData) {
-        const tier = companyData.opportunity_tier || "free";
-        const access = tier === "basic" || tier === "advanced";
-        setHasAccess(access);
-        if (!access) {
-          setIsLoading(false);
-          return;
-        }
-      }
     }
 
     setOpportunity(data);
@@ -147,30 +133,6 @@ export default function EditOpportunityPage({
         <Link href={`/${slug}/opportunities`} className="text-[#3182ce] hover:underline">
           Go back
         </Link>
-      </div>
-    );
-  }
-
-  if (!hasAccess) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center py-12">
-        <div className="text-center">
-          <div className="w-20 h-20 bg-purple-100 rounded-2xl flex items-center justify-center mb-6">
-            <Pencil className="w-10 h-10 text-purple-600" />
-          </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">Upgrade to Edit Opportunities</h2>
-          <p className="text-gray-600 mb-8 max-w-xl">
-            Your current plan doesn&apos;t include access to opportunity editing.
-            Upgrade to modify opportunity details, requirements, and settings.
-          </p>
-          <button
-            onClick={() => { window.location.href = `/${slug}/opportunities`; }}
-            className="inline-flex items-center gap-2 px-6 py-3 bg-[#3182ce] text-white rounded-xl font-medium text-sm hover:bg-[#2c5cb8] transition-colors"
-          >
-            <DollarSign className="w-5 h-5" />
-            Upgrade Plan
-          </button>
-        </div>
       </div>
     );
   }

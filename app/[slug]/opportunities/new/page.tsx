@@ -34,7 +34,6 @@ export default function NewOpportunityPage({ params }: Props) {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [companyId, setCompanyId] = useState<string | null>(null);
-  const [hasAccess, setHasAccess] = useState<boolean>(false);
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -57,16 +56,6 @@ export default function NewOpportunityPage({ params }: Props) {
     const { data } = await getCompanyBySlug(slug);
     if (data) {
       setCompanyId(data.id);
-      
-      // Check if company has access to create opportunities based on tier
-      const tier = data.opportunity_tier || 'free';
-      const hasAccess = tier === 'basic' || tier === 'advanced';
-      setHasAccess(hasAccess);
-      
-      if (!hasAccess) {
-        setIsLoading(false);
-        return;
-      }
     }
     setIsLoading(false);
   };
@@ -131,16 +120,6 @@ export default function NewOpportunityPage({ params }: Props) {
             return;
         }
 
-        // If company is on basic tier, increment listings used
-        const tierRes = await workerFetch(`/api/companies/${companyId}/tier`);
-        const tierData = await tierRes.json();
-        if (tierData?.opportunity_tier === "basic") {
-            await workerFetch(`/api/companies/${companyId}/tier`, {
-                method: "PATCH",
-                body: JSON.stringify({ opportunity_listings_used: (tierData.opportunity_listings_used || 0) + 1 }),
-            });
-        }
-
         window.location.href = `/${slug}/opportunities`;
     };
 
@@ -156,34 +135,6 @@ export default function NewOpportunityPage({ params }: Props) {
         return (
             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
                 {error}
-            </div>
-        );
-    }
-
-    // If user doesn't have access to create opportunities, show upgrade prompt
-    if (!hasAccess) {
-        return (
-            <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center py-12">
-                <div className="text-center">
-                    <div className="w-20 h-20 bg-purple-100 rounded-2xl flex items-center justify-center mb-6">
-                        <Save className="w-10 h-10 text-purple-600" />
-                    </div>
-                    <h2 className="text-2xl font-bold text-gray-900 mb-4">Upgrade to Create Opportunities</h2>
-                    <p className="text-gray-600 mb-8 max-w-xl">
-                        Your current plan doesn&apos;t include the ability to create new opportunities.
-                        Upgrade to post job listings, internships, grants, and tenders.
-                    </p>
-                    <button
-                        onClick={() => {
-                            // Navigate to opportunities page to show upgrade modal there
-                            window.location.href = `/${slug}/opportunities`;
-                        }}
-                        className="inline-flex items-center gap-2 px-6 py-3 bg-[#3182ce] text-white rounded-xl font-medium text-sm hover:bg-[#2c5cb8] transition-colors"
-                    >
-                        <DollarSign className="w-5 h-5" />
-                        Upgrade Plan
-                    </button>
-                </div>
             </div>
         );
     }

@@ -13,13 +13,11 @@ import {
   CheckCircle,
   XCircle,
   Briefcase,
-  DollarSign,
 } from "lucide-react";
 import { Opportunity, Application } from "@/types/company";
 import {
   getOpportunityById,
   getOpportunityApplications,
-  getCompanyBySlug,
   workerFetch,
 } from "@/lib/worker";
 import { compareApplicants, ApplicantScore } from "@/lib/ai";
@@ -59,8 +57,6 @@ export default function OpportunityApplicationsPage({
   const [isAIScoreLoading, setIsAIScoreLoading] = useState(false);
   const [applicantScores, setApplicantScores] = useState<ApplicantScore[]>([]);
   const [showAIScoreModal, setShowAIScoreModal] = useState(false);
-  const [hasAccess, setHasAccess] = useState(true);
-  const [companyTier, setCompanyTier] = useState("free");
 
   const totalPages = Math.ceil(totalApps / PAGE_SIZE);
   const deferredSearch = useDeferredValue(searchQuery);
@@ -74,22 +70,8 @@ export default function OpportunityApplicationsPage({
       return;
     }
 
-    if (data.company_id) {
-      const { data: companyData } = await getCompanyBySlug(slug);
-      if (companyData) {
-        const tier = companyData.opportunity_tier || "free";
-        const access = tier === "basic" || tier === "advanced";
-        setHasAccess(access);
-        setCompanyTier(tier);
-        if (!access) {
-          setIsLoading(false);
-          return;
-        }
-      }
-    }
-
     setOpportunity(data);
-  }, [oppId, slug]);
+  }, [oppId]);
 
   const fetchApplications = useCallback(async (page: number) => {
     setIsLoading(true);
@@ -203,30 +185,6 @@ export default function OpportunityApplicationsPage({
         <Link href={`/${slug}/opportunities`} className="text-[#3182ce] hover:underline">
           Go back
         </Link>
-      </div>
-    );
-  }
-
-  if (!hasAccess) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center py-12">
-        <div className="text-center">
-          <div className="w-20 h-20 bg-purple-100 rounded-2xl flex items-center justify-center mb-6">
-            <Users className="w-10 h-10 text-purple-600" />
-          </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">Upgrade to Manage Applications</h2>
-          <p className="text-gray-600 mb-8 max-w-xl">
-            Your current plan ({companyTier} tier) doesn&apos;t include access to applications management.
-            Upgrade to view and manage applicant submissions, send feedback, and use AI comparison tools.
-          </p>
-          <button
-            onClick={() => { window.location.href = `/${slug}/opportunities`; }}
-            className="inline-flex items-center gap-2 px-6 py-3 bg-[#3182ce] text-white rounded-xl font-medium text-sm hover:bg-[#2c5cb8] transition-colors"
-          >
-            <DollarSign className="w-5 h-5" />
-            Upgrade Plan
-          </button>
-        </div>
       </div>
     );
   }

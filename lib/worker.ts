@@ -158,6 +158,18 @@ export async function getCompanyUsers(companyId: string): Promise<{ data: UserCo
   return { data: res.data || [], error: res.error };
 }
 
+export async function isUserCompanyMember(userId: string, companyId: string): Promise<{ isMember: boolean; role: string | null; error: Error | null }> {
+  try {
+    const res = await workerFetch(`/api/users/${userId}/companies`);
+    if (!res.ok) return { isMember: false, role: null, error: new Error(await res.text()) };
+    const data = await res.json() as UserCompany[];
+    const match = data.find(uc => uc.company_id === companyId && (uc.status === "accepted" || uc.status === "active"));
+    return { isMember: !!match, role: match?.role || null, error: null };
+  } catch (e) {
+    return { isMember: false, role: null, error: e instanceof Error ? e : new Error(String(e)) };
+  }
+}
+
 export async function updateCompanyUser(userCompanyId: string, updates: { role?: string; status?: string }): Promise<{ data: UserCompany | null; error: Error | null }> {
   return workerMutate<UserCompany>(`/api/companies/_user/${userCompanyId}`, "PATCH", updates);
 }

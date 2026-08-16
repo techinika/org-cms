@@ -10,15 +10,13 @@ import {
   Loader2,
   Eye,
   Users,
-  CreditCard,
 } from "lucide-react";
 import { FeaturedStartup } from "@/types/company";
-import { getCompanyBySlug } from "@/lib/worker";
+import { getCompanyBySlug, isUserCompanyMember } from "@/lib/worker";
 import { useAuth } from "@/hooks/useAuth";
 import Navbar from "@/components/parts/Navbar";
 import Breadcrumb from "@/components/parts/Breadcrumb";
 import CompanyLogo from "@/components/ui/CompanyLogo";
-import PricingModal from "@/components/opportunities/PricingModal";
 
 export default function CompanyPage({
   params,
@@ -30,18 +28,27 @@ export default function CompanyPage({
   const [company, setCompany] = useState<FeaturedStartup | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showPricingModal, setShowPricingModal] = useState(false);
+  const [isMember, setIsMember] = useState<boolean | null>(null);
 
   const fetchCompany = useCallback(async () => {
     setIsLoading(true);
     const { data, error } = await getCompanyBySlug(slug);
     if (error || !data) {
       setError("Company not found");
-    } else {
-      setCompany(data);
+      setIsLoading(false);
+      return;
+    }
+    setCompany(data);
+
+    if (user) {
+      const { isMember: member } = await isUserCompanyMember(user.id, data.id);
+      setIsMember(member);
+      if (!member) {
+        setError("You are not a member of this company");
+      }
     }
     setIsLoading(false);
-  }, [slug]);
+  }, [slug, user]);
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -61,6 +68,17 @@ export default function CompanyPage({
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
         <p className="text-gray-500 mb-4">{error || "Company not found"}</p>
+        <Link href="/" className="text-[#3182ce] hover:underline">
+          Go back home
+        </Link>
+      </div>
+    );
+  }
+
+  if (isMember === false) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
+        <p className="text-gray-500 mb-4">You are not a member of this company</p>
         <Link href="/" className="text-[#3182ce] hover:underline">
           Go back home
         </Link>
@@ -175,47 +193,16 @@ export default function CompanyPage({
               <Briefcase className="w-6 h-6 text-purple-600" />
             </div>
             <div className="flex-1">
-              <div className="flex items-center gap-2 mb-1">
-                <h2 className="text-lg font-semibold text-gray-900">
-                  Company Opportunities
-                </h2>
-                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                  company.opportunity_tier === "advanced"
-                    ? "bg-green-100 text-green-700"
-                    : "bg-yellow-100 text-yellow-700"
-                }`}>
-                  {company.opportunity_tier === "advanced" ? "Advanced" : "Basic"}
-                </span>
-              </div>
+              <h2 className="text-lg font-semibold text-gray-900">
+                Company Opportunities
+              </h2>
               <p className="text-sm text-gray-500">
                 Post jobs, tenders, grants
               </p>
-              {(company.opportunity_tier === "free" || company.opportunity_tier === "basic") && (
-                <button
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setShowPricingModal(true);
-                  }}
-                  className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#3182ce] text-white rounded-xl text-sm font-medium hover:bg-[#2c5cb8] transition-colors"
-                >
-                  <CreditCard className="w-4 h-4" />
-                  Upgrade to Advanced
-                </button>
-              )}
             </div>
           </Link>
         </div>
       </div>
-
-      {showPricingModal && (
-        <PricingModal
-          isOpen={showPricingModal}
-          onClose={() => setShowPricingModal(false)}
-          companyId={company.id}
-          currentTier={company.opportunity_tier}
-          onUpgradeSuccess={fetchCompany}
-        />
-      )}
     </div>
   );
 }

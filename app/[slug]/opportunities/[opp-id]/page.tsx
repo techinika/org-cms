@@ -12,10 +12,9 @@ import {
   Users,
   Pencil,
   ArrowRight,
-  DollarSign,
 } from "lucide-react";
 import { Opportunity } from "@/types/company";
-import { getOpportunityById, getCompanyBySlug, workerFetch } from "@/lib/worker";
+import { getOpportunityById, workerFetch } from "@/lib/worker";
 import { checkAuthClient, getAuthRedirectUrl } from "@/lib/auth-client";
 import Navbar from "@/components/parts/Navbar";
 import Breadcrumb from "@/components/parts/Breadcrumb";
@@ -34,7 +33,6 @@ export default function OpportunityPage({
   const [error, setError] = useState<string | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [hasAccess, setHasAccess] = useState<boolean>(true);
 
   const checkAuth = async () => {
     const authResult = await checkAuthClient();
@@ -52,21 +50,6 @@ export default function OpportunityPage({
       setError("Opportunity not found");
       setIsLoading(false);
       return;
-    }
-    
-    // Also fetch company data to check tier access
-    if (data.company_id) {
-      const { data: companyData, error: companyError } = await getCompanyBySlug(slug);
-      if (!companyError && companyData) {
-        const tier = companyData.opportunity_tier || 'free';
-        const hasAccess = tier === 'basic' || tier === 'advanced';
-        setHasAccess(hasAccess);
-        
-        if (!hasAccess) {
-          setIsLoading(false);
-          return;
-        }
-      }
     }
     
     setOpportunity(data);
@@ -138,34 +121,6 @@ export default function OpportunityPage({
                 >
                     Go back
                 </Link>
-            </div>
-        );
-    }
-
-    // If user doesn't have access to view opportunity details, show upgrade prompt
-    if (!hasAccess) {
-        return (
-            <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center py-12">
-                <div className="text-center">
-                    <div className="w-20 h-20 bg-purple-100 rounded-2xl flex items-center justify-center mb-6">
-                        <Briefcase className="w-10 h-10 text-purple-600" />
-                    </div>
-                    <h2 className="text-2xl font-bold text-gray-900 mb-4">Upgrade to View Opportunity Details</h2>
-                    <p className="text-gray-600 mb-8 max-w-xl">
-                        Your current plan ({opportunity?.company_id ? 'unknown' : 'free'} tier) doesn&apos;t include access to opportunity details.
-                        Upgrade to view and manage your opportunities.
-                    </p>
-                    <button
-                        onClick={() => {
-                            // Navigate to opportunities page to show upgrade modal there
-                            window.location.href = `/${slug}/opportunities`;
-                        }}
-                        className="inline-flex items-center gap-2 px-6 py-3 bg-[#3182ce] text-white rounded-xl font-medium text-sm hover:bg-[#2c5cb8] transition-colors"
-                    >
-                        <DollarSign className="w-5 h-5" />
-                        Upgrade Plan
-                    </button>
-                </div>
             </div>
         );
     }

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { use } from "react";
 import Link from "next/link";
 import { FeaturedStartup, Event } from "@/types/company";
-import { getCompanyBySlug, getCompanyEvents, workerFetch } from "@/lib/worker";
+import { getCompanyBySlug, getCompanyEvents, workerFetch, isUserCompanyMember } from "@/lib/worker";
 import { checkAuthClient, getAuthRedirectUrl } from "@/lib/auth-client";
 import Navbar from "@/components/parts/Navbar";
 import Breadcrumb from "@/components/parts/Breadcrumb";
@@ -23,6 +23,7 @@ export default function CompanyEventsPage({ params }: { params: Promise<{ slug: 
   const [showMenu, setShowMenu] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<{ open: boolean; event: Event | null }>({ open: false, event: null });
+  const [isMember, setIsMember] = useState<boolean | null>(null);
 
   const checkAuth = async () => {
     const authResult = await checkAuthClient();
@@ -30,10 +31,10 @@ export default function CompanyEventsPage({ params }: { params: Promise<{ slug: 
       window.location.replace(getAuthRedirectUrl());
       return;
     }
-    fetchCompany();
+    fetchCompany(authResult.user.id);
   };
 
-  const fetchCompany = async () => {
+  const fetchCompany = async (userId?: string) => {
     setIsLoading(true);
     const { data: companyData, error: companyError } = await getCompanyBySlug(slug);
     if (companyError || !companyData) {
@@ -42,6 +43,16 @@ export default function CompanyEventsPage({ params }: { params: Promise<{ slug: 
       return;
     }
     setCompany(companyData);
+
+    if (userId) {
+      const { isMember: member } = await isUserCompanyMember(userId, companyData.id);
+      setIsMember(member);
+      if (!member) {
+        setError("You are not a member of this company");
+        setIsLoading(false);
+        return;
+      }
+    }
 
     const { data: eventsData, error: eventsError } = await getCompanyEvents(companyData.id);
     setEvents(eventsData || []);
@@ -92,6 +103,15 @@ export default function CompanyEventsPage({ params }: { params: Promise<{ slug: 
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
         <p className="text-gray-500 mb-4">{error || "Company not found"}</p>
+        <Link href="/" className="text-[#3182ce] hover:underline">Go back home</Link>
+      </div>
+    );
+  }
+
+  if (isMember === false) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
+        <p className="text-gray-500 mb-4">You are not a member of this company</p>
         <Link href="/" className="text-[#3182ce] hover:underline">Go back home</Link>
       </div>
     );

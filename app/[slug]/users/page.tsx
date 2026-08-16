@@ -14,7 +14,7 @@ import {
   UserCheck,
 } from "lucide-react";
 import { FeaturedStartup, UserCompany } from "@/types/company";
-import { getCompanyBySlug, getCompanyUsers, updateCompanyUser } from "@/lib/worker";
+import { getCompanyBySlug, getCompanyUsers, updateCompanyUser, isUserCompanyMember } from "@/lib/worker";
 import { checkAuthClient, getAuthRedirectUrl } from "@/lib/auth-client";
 import Navbar from "@/components/parts/Navbar";
 import Breadcrumb from "@/components/parts/Breadcrumb";
@@ -46,6 +46,7 @@ export default function CompanyUsersPage({
   }>({ open: false, type: "accept", userCompanyId: null, userName: null, role: "manager" });
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedRole, setSelectedRole] = useState<typeof ROLES[number]>("manager");
+  const [isMember, setIsMember] = useState<boolean | null>(null);
 
   const checkAuth = async () => {
     const authResult = await checkAuthClient();
@@ -66,6 +67,16 @@ export default function CompanyUsersPage({
       return;
     }
     setCompany(companyData);
+
+    if (userId) {
+      const { isMember: member } = await isUserCompanyMember(userId, companyData.id);
+      setIsMember(member);
+      if (!member) {
+        setError("You are not a member of this company");
+        setIsLoading(false);
+        return;
+      }
+    }
 
     const { data: usersData, error: usersError } = await getCompanyUsers(companyData.id);
     if (usersError) {
@@ -142,6 +153,15 @@ export default function CompanyUsersPage({
         <Link href="/" className="text-[#3182ce] hover:underline">
           Go back home
         </Link>
+      </div>
+    );
+  }
+
+  if (isMember === false) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
+        <p className="text-gray-500 mb-4">You are not a member of this company</p>
+        <Link href="/" className="text-[#3182ce] hover:underline">Go back home</Link>
       </div>
     );
   }
